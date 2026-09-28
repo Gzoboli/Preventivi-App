@@ -1,5 +1,6 @@
 import { FileText, Plus } from 'lucide-react'
 import { useAuth } from '../auth/AuthProvider'
+import { OnboardingBanner } from '../components/OnboardingBanner'
 
 export function HomePage() {
   const { session } = useAuth()
@@ -9,6 +10,10 @@ export function HomePage() {
     <div>
       <h1 className="text-2xl font-semibold md:text-3xl">Ciao!</h1>
       {email && <p className="mt-1 text-muted">{email}</p>}
+
+      <div className="mt-6">
+        <OnboardingBanner />
+      </div>
 
       {/* Not wired up yet: quote creation comes in a later task. */}
       <button

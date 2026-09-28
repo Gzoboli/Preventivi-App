@@ -33,61 +33,64 @@ AI quoting tool for Italian electricians. 3–5 testers. Product spec; see CLAUD
 
 ## 2. Onboarding "Il tuo metodo"
 
-On first login (onboarding_completed = false) show a step-by-step onboarding. One question per screen, progress bar, "Indietro" / "Avanti", can be resumed later. At the end, save everything to `profiles.onboarding_answers` and create the electrician's `price_items` from the default list (see Q5), then set onboarding_completed = true.
+14 questions in 6 blocks (list decided with Gio in Task 2; implemented in `src/lib/onboarding/questions.ts`).
 
-**Every question:** 3–5 tappable options + a last option **"Altro…"** that opens a text field. Multi-select where marked. Pre-select the recommended option.
+**Flow**
+- On login, if `onboarding_completed = false` and the user never postponed it, show the onboarding; otherwise Home.
+- One question per screen. Top: block name, "N di 14", progress bar, **"Salta blocco"** (recommended values for the rest of the block), **"Finisco dopo"** (saves, goes to Home). Bottom: "Indietro" / "Avanti".
+- Home shows "Completa il tuo metodo · mancano X domande" until completed → resumes where they left.
+- Quotes can be created before finishing: unanswered questions use the recommended values.
+- Each answer is saved immediately in `profiles.onboarding_answers[questionId]` as `{ value, source: 'user' | 'default', custom_text? }`. Progress lives in `onboarding_answers._meta` (`postponed`, `step`).
+- **Every question:** tappable options, recommended one pre-selected with a "Consigliato" tag, last option **"Altro…"** with a text field (saved and passed to the AI).
+- At the end: `init_my_price_items()` if the user has no price items, `onboarding_completed = true`, summary screen.
 
-Use exactly these texts:
+### Benvenuto
+> **Ciao{, Nome}! Prima di iniziare, 8 minuti per conoscerti.**
+> Ogni elettricista lavora a modo suo. Queste domande servono solo a far uscire i preventivi **come li faresti tu**, con i tuoi prezzi e il tuo modo di lavorare.
+>
+> 🔒 (green box) **Le tue risposte sono tue.** Non le vede nessun altro: né altri elettricisti, né i tuoi clienti. Puoi cambiarle quando vuoi da "Il mio metodo".
+>
+> (grey box) **Cosa sa già l'app?** Conosce i listini Vimar e BTicino 2026, le regole base di un impianto a norma e come si struttura un preventivo per un appartamento. Quello che non sa è **come lavori tu**: per questo ti facciamo qualche domanda.
+>
+> [Iniziamo] · Lo faccio dopo
 
-### Schermata di benvenuto
-> **Ciao! Prima di iniziare, 10 minuti per conoscerti.**
-> Ogni elettricista lavora a modo suo. Queste domande servono solo a una cosa: fare in modo che i preventivi escano **come li faresti tu**, con i tuoi prezzi e il tuo modo di lavorare.
->
-> 🔒 **Le tue risposte sono tue.** Non le vede nessun altro: né altri elettricisti, né i tuoi clienti. Puoi cambiarle quando vuoi da "Il mio metodo".
->
-> **Cosa sa già l'app?** Conosce i listini Vimar e BTicino aggiornati al 2026, le regole base di un impianto a norma e come si struttura un preventivo per un appartamento. Quello che non sa è **come lavori tu**: per questo ti facciamo qualche domanda.
->
-> [Iniziamo]
+(✓ = recommended)
 
 ### Blocco 1 — Come lavori
-1. **Che lavori fai più spesso?** (multi) — Impianti civili nuovi · Rifacimenti di appartamenti · Manutenzione aziende · Piccoli interventi da privati · Altro…
-2. **Come fai di solito il prezzo nei preventivi per privati?** — A punto, tutto compreso (materiale + manodopera) · A ore + materiale a parte · Un misto: a punto per l'impianto, a ore per il resto · Altro…
-3. **Tariffa oraria (privati)?** — 30 € · 35 € · 40 € · 45 € · Altro…
-4. **Tariffa oraria aiutante?** — Non ho aiutante · 20 € · 25 € · 30 € · Altro…
+- `q1` (multi) **Che lavori fai più spesso?** — Impianti civili nuovi ✓ · Rifacimenti di appartamenti ✓ · Manutenzione aziende · Piccoli interventi da privati · Altro…
+- `q2` **Come fai di solito il prezzo per i privati?** — A punto, tutto compreso (materiale + manodopera) ✓ · A ore + materiale a parte · A punto l'impianto, a ore il resto · Altro…
+- `q3` **La tua tariffa oraria?** — 30 € · 40 € · 50 € · 60 € ✓ · Altro…
+- `q4` **Tariffa oraria dell'aiutante?** — Non ho aiutante · 20 € · 25 € ✓ · 30 € · Altro…
 
 ### Blocco 2 — I tuoi prezzi
-5. **Ecco un listino "a punto" di partenza. Va bene così?** Show an editable table pre-filled with the DEFAULT PRICE LIST below. Buttons: "Va bene così" · "Aumenta tutto del __%" · "Diminuisci tutto del __%" · edit single cells · "Aggiungi voce".
-6. **Uscita minima per piccoli interventi?** — Nessuna · 30 € · 50 € · 1 ora di lavoro · Altro…
-7. **Trasferta fuori zona?** — Non la faccio pagare · 0,50 €/km · Forfait fisso · Altro…
+- `q5` **Ecco un listino "a punto" di partenza. Va bene così?** — editable table of the user's `price_items` grouped by category (name, price €, unit; inline edit). Chips "−5%", "+5%", "+10%" (all rows, rounded to 0,10 €), "Aggiungi voce". Button "Va bene così". Note: "Prezzi IVA esclusa. Materiale e manodopera inclusi, se non indicato diversamente."
 
 ### Blocco 3 — Materiali
-8. **Da che grossista compri principalmente?** — ELFI · Sonepar · Rexel · Comet · Altro…
-9. **Che sconto hai sul listino?** One row per brand (Vimar, BTicino, Schneider, Gewiss, Altro) with options: Non so · 30% · 40% · 45% · 50% · Altro… Plus a button **"Carica la foto di una bolla e lo calcoliamo noi"** (just uploads the photo to storage for now).
-10. **Marche che usi per i frutti?** (multi) — Vimar · BTicino · Gewiss · Schneider · Altro…
-11. **Le tue serie base / media / top?** Three dropdowns fed from the catalogue series (Vimar: Plana, Arké, Eikon, Linea… BTicino: Living Now, Living Light, Axolute, Matix…) + Altro…
+- `q6` **Che sconto hai dal grossista sul listino?** — one row per brand (Vimar, BTicino, Schneider): Non so ✓ · 40% · 45% · 50% · Altro… "Se non lo sai, usiamo uno sconto medio del 46%." Button **"Carica la foto di una bolla"** → `quote-files/{user_id}/bolle/{timestamp}.jpg`, then "Grazie! Lo calcoliamo noi entro 24 ore." Saved to `discounts` (brand, discount_pct or null, source 'user' | 'default' | 'bolla_pending').
+- `q7` **Le tue serie per le tre opzioni del preventivo?** — Base / Consigliata / Top, each a dropdown of civil series in the catalogue + Altro… Recommended: Vimar Plana / Vimar Arké / Vimar Eikon.
 
 ### Blocco 4 — Come realizzi l'impianto
-12. **Come distribuisci di solito le linee?** — Scatole di derivazione per stanza (consigliato) · Linee dedicate dal quadro per le utenze principali · Entra-esci tra i punti · Dipende dal lavoro · Altro…
-13. **Differenziali nel quadro?** — Uno generale · Uno per zona (luci / prese / cucina) · Dipende dalla casa · Altro…
-14. **Che livello di impianto proponi di solito (CEI 64-8)?** — Livello 1 (minimo di legge) · Livello 2 (più comfort) · Livello 3 (domotica) · Chiedo al cliente · Altro…
+- `q8` **Come distribuisci di solito le linee?** — Scatole di derivazione per stanza ✓ · Linee dedicate dal quadro per le utenze principali · Entra-esci tra i punti · Dipende dal lavoro · Altro…
+- `q9` **Che livello di impianto proponi di solito? (norma CEI 64-8)** — "Il livello decide quanti punti minimi mettiamo per stanza." — Livello 1 (minimo di legge) ✓ · Livello 2 (più comfort) · Livello 3 (domotica) · Chiedo al cliente · Altro…
 
-### Blocco 5 — Condizioni commerciali
-15. **IVA che applichi di solito?** — 10% (ristrutturazioni in casa) · 22% · Decido caso per caso · Altro…
-16. **Validità del preventivo?** — 30 giorni · 60 giorni · 90 giorni · Altro…
-17. **Pagamenti per clienti nuovi?** — Tutto a fine lavori · 30% acconto, saldo a fine lavori · 20% a fine tubazioni, 20% a fine cavi, saldo a fine lavori · Altro…
-18. **Cosa escludi sempre?** (multi, all pre-selected) — Opere murarie e tracce · Smaltimento macerie · Fornitura e montaggio lampadari · Punto luce provvisorio · Altro…
-19. **Dichiarazione di conformità?** — Inclusa se faccio io i lavori · Sempre a parte · Altro…
+### Blocco 5 — Condizioni
+- `q10` **IVA che applichi di solito ai privati?** — "Potrai cambiarla su ogni preventivo." — 10% (ristrutturazioni in casa) ✓ · 22% · Decido caso per caso · Altro…
+- `q11` **Validità del preventivo?** — 30 giorni · 60 giorni ✓ · 90 giorni · Altro…
+- `q12` **Pagamenti per clienti nuovi?** — Tutto a fine lavori · 30% di acconto, saldo a fine lavori · 20% a fine tubazioni, 20% a fine cavi, saldo a fine lavori ✓ · Altro…
+- `q13` (multi) **Cosa escludi sempre dal preventivo?** — Opere murarie e tracce ✓ · Smaltimento macerie ✓ · Fornitura e montaggio lampadari ✓ · Punto luce provvisorio ✓ · Altro…
 
 ### Blocco 6 — Il tuo preventivo
-20. Company details (ragione sociale, forma giuridica, P.IVA, indirizzo, telefono, email), logo upload, accent colour picker.
+- `q14` Company form (all optional, "Servono solo per il PDF. Puoi completarli dopo."): Ragione sociale, Forma giuridica (Ditta individuale · S.n.c. · S.a.s. · S.r.l. · Altro), P.IVA, Indirizzo, Telefono, Email, Logo (`logos/{user_id}/logo.{ext}`, preview), Colore del preventivo (6 swatches + custom hex, default #1F5EFF). Saved to `profiles`.
 
 ### Fine
-> **Fatto! 🎉** Da ora ogni preventivo userà il tuo metodo. Se qualcosa non torna, cambialo in "Il mio metodo" o correggilo direttamente nel preventivo: l'app impara dalle tue correzioni.
+> **Fatto! Ecco il tuo metodo.** Summary, one line each: Prezzo · Tariffa (+ aiutante) · Sconti · Serie (Base / Consigliata / Top) · Linee · Livello · IVA · Validità · Pagamenti · Esclusi. Default values in grey with "(consigliato)".
+> Puoi cambiare tutto da "Il mio metodo". L'app impara anche dalle correzioni che fai nei preventivi.
+> [Crea il primo preventivo]
 
-**DEFAULT PRICE LIST (a punto, IVA esclusa):**
+**DEFAULT PRICE LIST (a punto, IVA esclusa)** — table `default_price_items`:
 Interruttore / deviatore / invertitore 29,30 · Interruttore bipolare 36,40 · Pulsante 29,30 · Presa 10A / bipresa 32,00 · Presa universale 36,30 · Presa TV 44,20 · Predisposizione punto luce 18,00 · Scatola di derivazione piccola 30,50 · Scatola di derivazione grande 45,20 · Centralino da incasso 8 moduli 62,00 · Interruttore generale magnetotermico differenziale 84,00 · Magnetotermico singola linea 21,00 · Dichiarazione di conformità su impianto esistente 300,00
 
-**"Il mio metodo" page:** shows all answers in the same format, editable anytime, plus the price list table and a free-text box "Altro che dovremmo sapere su come lavori".
+**"Il mio metodo" page (`/metodo`):** the same summary (each row opens that question in edit mode), "Il mio listino" (same price table as q5), "Altro che dovremmo sapere su come lavori" (free text → `profiles.method_notes`, autosave), "Dati per il preventivo" (q14 form). Two columns on desktop.
 
 ---
 

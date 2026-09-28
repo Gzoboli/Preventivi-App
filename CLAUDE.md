@@ -50,11 +50,13 @@ If a schema change is needed: write the SQL in `supabase/migrations/YYYYMMDDHHMM
 - Don't build features from later tasks early.
 
 ## Working protocol
-1. **Plan first, then wait.** At the start of each task, reply with a short plan: what you will build, which files you will touch, any doubts or risks. Do not write code until Gio replies "ok".
+Work **autonomously**. Gio only wants to be involved in macro decisions, not in every step.
 
-2. **Never decide alone on:** database schema, security/access, deleting data or features, new paid services, changing the AI flow. Propose it, explain why, and wait.
+1. **Just start.** At the start of a task, write a short plan (what, which files, risks) and carry on immediately — do not wait for an "ok". Process actions (commit, push, build, dev tooling, reading the DB, screenshots) never need permission.
 
-3. **Small steps.** Split each task into 2–4 steps. After each step: build (`npm run build`), type-check, run the tests. Fix every error before moving on.
+2. **Stop and ask only for macro decisions:** database schema changes, security/access model, deleting user data or existing features, new paid services, changing the AI flow, or a real product choice the task/SPEC does not answer. Everything else: pick the sensible option, note it in the report, keep going.
+
+3. **Small steps.** Split each task into 2–4 steps. After each step: `npm run build` (includes type-check) and `npm test`. Fix every error before moving on.
 
 4. **Check before you say it's done.** At the end, go through the task's "Done when" list point by point and mark each one ✅ or ❌ with a reason. Re-read your own diff looking for bugs, unhandled errors, API keys or the service role key in the frontend, and missing Italian text.
 

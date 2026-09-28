@@ -5,6 +5,7 @@ import { AppLayout } from './components/AppLayout'
 import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { MetodoPage } from './pages/MetodoPage'
+import { OnboardingPage } from './pages/OnboardingPage'
 
 export default function App() {
   return (
@@ -13,6 +14,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route element={<RequireAuth />}>
+            <Route path="onboarding" element={<OnboardingPage />} />
             <Route element={<AppLayout />}>
               <Route index element={<HomePage />} />
               <Route path="metodo" element={<MetodoPage />} />
