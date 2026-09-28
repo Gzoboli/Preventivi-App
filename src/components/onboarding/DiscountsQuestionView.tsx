@@ -49,12 +49,14 @@ export function DiscountsQuestionView({ value, onChange }: Props) {
         const pick = v.brands?.[brand] ?? { choice: DISCOUNT_RECOMMENDED }
         return (
           <fieldset key={brand} className="border-b border-line pb-5 last:border-0">
-            <legend className="mb-2 text-base font-semibold">{brand}</legend>
+            <legend className="mb-2 flex w-full items-baseline justify-between gap-2">
+              <span className="text-base font-semibold">{brand}</span>
+              <span className="text-sm text-muted">Consigliato: Non so</span>
+            </legend>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={`Sconto ${brand}`}>
               {DISCOUNT_OPTIONS.map((o) => (
                 <Chip key={o.id} selected={pick.choice === o.id} onClick={() => setPick(brand, { choice: o.id })}>
                   {o.label}
-                  {o.id === DISCOUNT_RECOMMENDED && <span className="sr-only"> (consigliato)</span>}
                 </Chip>
               ))}
               <Chip selected={pick.choice === ALTRO} onClick={() => setPick(brand, { choice: ALTRO, custom: pick.custom })}>

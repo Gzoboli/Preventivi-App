@@ -16,7 +16,10 @@ export function OnboardingBanner() {
       <ListChecks className="size-6 shrink-0 text-accent" aria-hidden />
       <span className="flex-1">
         <span className="font-semibold">Completa il tuo metodo</span>
-        <span className="text-muted"> · mancano {left} {left === 1 ? 'domanda' : 'domande'}</span>
+        <span className="hidden text-muted sm:inline"> · </span>
+        <span className="block text-muted sm:inline">
+          mancano {left} {left === 1 ? 'domanda' : 'domande'}
+        </span>
       </span>
       <ChevronRight className="size-5 shrink-0 text-accent" aria-hidden />
     </Link>

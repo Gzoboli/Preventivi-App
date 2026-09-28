@@ -205,13 +205,15 @@ function PriceRow({
   const cell = 'h-12 rounded-lg border border-transparent bg-transparent px-2 text-base outline-none hover:border-line focus:border-accent focus:bg-white focus:ring-2 focus:ring-accent/20'
 
   return (
-    <li className="grid grid-cols-[1fr_7.5rem_3rem] gap-x-2 py-1 sm:grid-cols-[1fr_7.5rem_6rem_3rem]">
-      <input
+    <li className="grid grid-cols-[1fr_7.5rem_3rem] items-center gap-x-2 py-1 sm:grid-cols-[1fr_7.5rem_6rem_3rem]">
+      <textarea
+        rows={1}
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => setName(e.target.value.replace(/\n/g, ' '))}
+        onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         onBlur={() => name.trim() && name !== item.name && onSave(item.id, { name: name.trim() })}
         aria-label="Voce"
-        className={`${cell} col-span-3 font-medium sm:col-span-1`}
+        className={`${cell} col-span-3 h-auto min-h-12 resize-none py-3 leading-snug font-medium field-sizing-content sm:col-span-1`}
       />
       <div className="flex items-center">
         <input
