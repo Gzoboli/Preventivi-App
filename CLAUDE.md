@@ -24,8 +24,7 @@ Product spec: `SPEC.md`. The owner (Gio) is not a developer: after every task, e
 
 ## Database — already exists, do NOT recreate
 Managed from outside this repo (via the Supabase connector). Tables in `public`:
-- `allowed_emails` (server-only) — sign-up is blocked by a DB trigger unless the email is listed.
-- `profiles` (id = auth user id; auto-created on first login) — company_name, legal_form, vat_number, address, phone, email, logo_path, accent_color, onboarding_answers jsonb, method_notes, onboarding_completed.
+- `profiles` (id = auth user id; auto-created on first login — sign-up is open, anyone with an email can log in) — company_name, legal_form, vat_number, address, phone, email, logo_path, accent_color, onboarding_answers jsonb, method_notes, onboarding_completed.
 - `default_price_items` (read-only) — starter "a punto" price list.
 - RPC `init_my_price_items()` — copies defaults into the user's `price_items`; returns rows inserted.
 - `price_items` (user_id, code, name, category, unit, price_eur, includes_material, notes, sort_order).

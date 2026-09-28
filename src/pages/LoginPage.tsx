@@ -7,12 +7,6 @@ import { FullPageSpinner } from '../components/FullPageSpinner'
 
 type Status = 'idle' | 'sending' | 'sent'
 
-// The DB trigger on auth.users rejects emails not in allowed_emails; GoTrue surfaces
-// that as a generic "Database error saving new user".
-function isNotAllowedError(message: string) {
-  return /database error|non autorizzata|not allowed|signups? not allowed/i.test(message)
-}
-
 export function LoginPage() {
   const { session, loading } = useAuth()
   const [email, setEmail] = useState('')
@@ -33,8 +27,8 @@ export function LoginPage() {
     if (error) {
       setStatus('idle')
       setError(
-        isNotAllowedError(error.message)
-          ? 'Questa email non è abilitata. Contatta Gio per l’accesso.'
+        error.status === 429
+          ? 'Troppi tentativi. Aspetta qualche minuto e riprova.'
           : 'Qualcosa non ha funzionato, riprova.',
       )
       return

@@ -15,24 +15,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      allowed_emails: {
-        Row: {
-          added_at: string
-          email: string
-          note: string | null
-        }
-        Insert: {
-          added_at?: string
-          email: string
-          note?: string | null
-        }
-        Update: {
-          added_at?: string
-          email?: string
-          note?: string | null
-        }
-        Relationships: []
-      }
       app_config: {
         Row: {
           key: string

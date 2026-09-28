@@ -12,7 +12,7 @@ AI quoting tool for Italian electricians. 3–5 testers. Product spec; see CLAUD
 
 **Backend:** Supabase (already created, see CLAUDE.md).
 
-**Auth:** email magic link only, no passwords. No public sign-up: only emails I add to an `allowed_emails` table can log in.
+**Auth:** email magic link only, no passwords. Open sign-up: anyone can enter their email, receive the link and log in.
 
 **Privacy (critical):** every table has Row Level Security. Each electrician can only ever see and edit their own data. Nobody else, not even other testers.
 
