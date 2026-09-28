@@ -48,3 +48,24 @@ If a schema change is needed: write the SQL in `supabase/migrations/YYYYMMDDHHMM
 ## Workflow
 - Work one task at a time, as given by Gio. Small, focused commits on `main`.
 - Don't build features from later tasks early.
+
+## Working protocol
+1. **Plan first, then wait.** At the start of each task, reply with a short plan: what you will build, which files you will touch, any doubts or risks. Do not write code until Gio replies "ok".
+
+2. **Never decide alone on:** database schema, security/access, deleting data or features, new paid services, changing the AI flow. Propose it, explain why, and wait.
+
+3. **Small steps.** Split each task into 2–4 steps. After each step: build (`npm run build`), type-check, run the tests. Fix every error before moving on.
+
+4. **Check before you say it's done.** At the end, go through the task's "Done when" list point by point and mark each one ✅ or ❌ with a reason. Re-read your own diff looking for bugs, unhandled errors, API keys or the service role key in the frontend, and missing Italian text.
+
+5. **Raise problems, don't hide them.** If something doesn't work, isn't clear, or you had to simplify, say so plainly in an "⚠️ Problemi aperti" section. Never say "fatto" if something is missing.
+
+6. **One task at a time.** Never start the next task on your own.
+
+7. **Final report in Italian**, always in this format:
+
+   - Cosa ho fatto
+   - Come provarlo (telefono e computer, passo per passo)
+   - ✅/❌ Checklist "Done when"
+   - ⚠️ Problemi aperti e decisioni da prendere
+   - Cosa serve da Gio (es. pubblicare una funzione, modifiche al database)
