@@ -5,6 +5,7 @@ import { MethodSummary } from '../components/MethodSummary'
 import { PriceListEditor } from '../components/PriceListEditor'
 import { CompanyForm } from '../components/CompanyForm'
 import { OnboardingBanner } from '../components/OnboardingBanner'
+import { MethodDocuments } from '../components/MethodDocuments'
 import { QuestionBody, validateDraft } from '../components/onboarding/QuestionBody'
 import { useOnboardingActions } from '../lib/onboarding/useOnboardingActions'
 import { effectiveAnswer, type Answer } from '../lib/onboarding/answers'
@@ -29,6 +30,7 @@ export function MetodoPage() {
             <MethodSummary answers={answers} onEdit={setEditing} />
           </section>
           <NotesSection />
+          <MethodDocuments />
         </div>
         <div className="space-y-10">
           <section>

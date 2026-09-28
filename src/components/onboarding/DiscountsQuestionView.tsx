@@ -1,5 +1,3 @@
-import { useRef, useState } from 'react'
-import { Camera, CheckCircle2, Loader2 } from 'lucide-react'
 import {
   ALTRO,
   DEFAULT_DISCOUNT_PCT,
@@ -9,38 +7,16 @@ import {
   type DiscountBrand,
 } from '../../lib/onboarding/questions'
 import type { Answer, DiscountsValue, Pick } from '../../lib/onboarding/answers'
-import { uploadBolla } from '../../lib/onboarding/persist'
-import { useAuth } from '../../auth/AuthProvider'
 import { Chip, inputClass } from './OptionButton'
 
 type Props = { value: Answer; onChange: (next: Answer) => void }
 
 export function DiscountsQuestionView({ value, onChange }: Props) {
-  const { session } = useAuth()
   const v = value.value as unknown as DiscountsValue
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [uploadError, setUploadError] = useState(false)
 
   function setPick(brand: DiscountBrand, pick: Pick) {
     const next: DiscountsValue = { ...v, brands: { ...v.brands, [brand]: pick } }
     onChange({ ...value, value: next as never })
-  }
-
-  async function handleFile(file: File | undefined) {
-    if (!file || !session) return
-    setUploading(true)
-    setUploadError(false)
-    try {
-      const path = await uploadBolla(session.user.id, file)
-      const next: DiscountsValue = { ...v, bolle: [...(v.bolle ?? []), path] }
-      onChange({ ...value, value: next as never })
-    } catch {
-      setUploadError(true)
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
   }
 
   return (
@@ -78,36 +54,6 @@ export function DiscountsQuestionView({ value, onChange }: Props) {
       })}
 
       <p className="text-muted">Se non lo sai, usiamo uno sconto medio del {DEFAULT_DISCOUNT_PCT}%.</p>
-
-      <div>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={(e) => void handleFile(e.target.files?.[0])}
-        />
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="flex h-12 w-full items-center justify-center gap-2 rounded-lg border border-accent px-4 font-semibold text-accent hover:bg-accent/5 disabled:opacity-70 sm:w-auto"
-        >
-          {uploading ? <Loader2 className="size-5 animate-spin" aria-hidden /> : <Camera className="size-5" aria-hidden />}
-          Carica la foto di una bolla
-        </button>
-        {(v.bolle?.length ?? 0) > 0 && !uploading && (
-          <p className="mt-3 flex items-center gap-2 font-medium text-green-700" role="status">
-            <CheckCircle2 className="size-5" aria-hidden />
-            Grazie! Lo calcoliamo noi entro 24 ore.
-          </p>
-        )}
-        {uploadError && (
-          <p className="mt-3 text-red-700" role="alert">
-            Qualcosa non ha funzionato, riprova.
-          </p>
-        )}
-      </div>
     </div>
   )
 }

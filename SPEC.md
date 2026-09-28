@@ -66,7 +66,7 @@ AI quoting tool for Italian electricians. 3–5 testers. Product spec; see CLAUD
 - `q5` **Ecco un listino "a punto" di partenza. Va bene così?** — editable table of the user's `price_items` grouped by category (name, price €, unit; inline edit). Chips "−5%", "+5%", "+10%" (all rows, rounded to 0,10 €), "Aggiungi voce". Button "Va bene così". Note: "Prezzi IVA esclusa. Materiale e manodopera inclusi, se non indicato diversamente."
 
 ### Blocco 3 — Materiali
-- `q6` **Che sconto hai dal grossista sul listino?** — one row per brand (Vimar, BTicino, Schneider): Non so ✓ · 40% · 45% · 50% · Altro… "Se non lo sai, usiamo uno sconto medio del 46%." Button **"Carica la foto di una bolla"** → `quote-files/{user_id}/bolle/{timestamp}.jpg`, then "Grazie! Lo calcoliamo noi entro 24 ore." Saved to `discounts` (brand, discount_pct or null, source 'user' | 'default' | 'bolla_pending').
+- `q6` **Che sconto hai dal grossista sul listino?** — one row per brand (Vimar, BTicino, Schneider): Non so ✓ · 40% · 45% · 50% · Altro… "Se non lo sai, usiamo uno sconto medio del 46%." Saved to `discounts` (brand, discount_pct or null, source 'user' | 'default').
 - `q7` **Le tue serie per le tre opzioni del preventivo?** — Base / Consigliata / Top, each a dropdown of civil series in the catalogue + Altro… Recommended: Vimar Plana / Vimar Arké / Vimar Eikon.
 
 ### Blocco 4 — Come realizzi l'impianto
@@ -90,7 +90,7 @@ AI quoting tool for Italian electricians. 3–5 testers. Product spec; see CLAUD
 **DEFAULT PRICE LIST (a punto, IVA esclusa)** — table `default_price_items`:
 Interruttore / deviatore / invertitore 29,30 · Interruttore bipolare 36,40 · Pulsante 29,30 · Presa 10A / bipresa 32,00 · Presa universale 36,30 · Presa TV 44,20 · Predisposizione punto luce 18,00 · Scatola di derivazione piccola 30,50 · Scatola di derivazione grande 45,20 · Centralino da incasso 8 moduli 62,00 · Interruttore generale magnetotermico differenziale 84,00 · Magnetotermico singola linea 21,00 · Dichiarazione di conformità su impianto esistente 300,00
 
-**"Il mio metodo" page (`/metodo`):** the same summary (each row opens that question in edit mode), "Il mio listino" (same price table as q5), "Altro che dovremmo sapere su come lavori" (free text → `profiles.method_notes`, autosave), "Dati per il preventivo" (q14 form). Two columns on desktop.
+**"Il mio metodo" page (`/metodo`):** the same summary (each row opens that question in edit mode), "Il mio listino" (same price table as q5), "Altro che dovremmo sapere su come lavori" (free text → `profiles.method_notes`, autosave), "I tuoi documenti (facoltativo)" (upload photos/PDFs — price lists, wholesaler invoices, old quotes — to `quote-files/{user_id}/metodo/`, list + remove; never required; later passed to the AI), "Dati per il preventivo" (q14 form). Two columns on desktop.
 
 ---
 

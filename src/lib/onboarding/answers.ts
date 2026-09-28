@@ -29,7 +29,7 @@ export type Answer<V extends Json = Json> = {
 /** A choice with an optional "Altro…" text (used per brand in q6, per tier in q7). */
 export type Pick = { choice: string; custom?: string }
 
-export type DiscountsValue = { brands: Record<DiscountBrand, Pick>; bolle?: string[] }
+export type DiscountsValue = { brands: Record<DiscountBrand, Pick> }
 export type SeriesValue = Record<TierId, Pick>
 
 export type OnboardingMeta = {
