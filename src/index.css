@@ -1,0 +1,18 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --color-accent: #1f5eff;
+  --color-accent-hover: #1449d6;
+  --color-ink: #1f2933;
+  --color-muted: #5f6b7a;
+  --color-line: #e3e7ec;
+}
+
+html,
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
+}
