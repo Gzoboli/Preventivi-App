@@ -6,6 +6,7 @@ import { LoginPage } from './pages/LoginPage'
 import { HomePage } from './pages/HomePage'
 import { MetodoPage } from './pages/MetodoPage'
 import { OnboardingPage } from './pages/OnboardingPage'
+import { QuotePage } from './pages/QuotePage'
 
 export default function App() {
   return (
@@ -18,6 +19,7 @@ export default function App() {
             <Route element={<AppLayout />}>
               <Route index element={<HomePage />} />
               <Route path="metodo" element={<MetodoPage />} />
+              <Route path="preventivi/:id" element={<QuotePage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
