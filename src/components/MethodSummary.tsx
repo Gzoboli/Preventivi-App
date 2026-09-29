@@ -35,7 +35,7 @@ export const OTHER_ROWS: Row[] = [
   { label: 'Validità', ids: one('q11') },
   { label: 'Pagamenti', ids: one('q12') },
   { label: 'Esclusi', ids: one('q13') },
-  { label: 'Serie', hint: 'Base / Consigliata / Top', ids: one('q7') },
+  { label: 'Serie', hint: 'Base / Media / Top', ids: one('q7') },
   { label: 'Linee', ids: one('q8') },
   { label: 'Livello', ids: one('q9') },
   { label: 'Lavori', ids: one('q1') },

@@ -1,5 +1,5 @@
 import { ALTRO, SERIES, SERIES_DEFAULTS, TIERS, type TierId } from '../../lib/onboarding/questions'
-import type { Answer, Pick, SeriesValue } from '../../lib/onboarding/answers'
+import { seriesValue, type Answer, type Pick } from '../../lib/onboarding/answers'
 import { inputClass } from './OptionButton'
 
 type Props = { value: Answer; onChange: (next: Answer) => void }
@@ -7,7 +7,7 @@ type Props = { value: Answer; onChange: (next: Answer) => void }
 const brands = [...new Set(SERIES.map((s) => s.marca))]
 
 export function SeriesQuestionView({ value, onChange }: Props) {
-  const v = value.value as unknown as SeriesValue
+  const v = seriesValue(value)
 
   function setPick(tier: TierId, pick: Pick) {
     onChange({ ...value, value: { ...v, [tier]: pick } as never })

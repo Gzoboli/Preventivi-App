@@ -306,14 +306,18 @@ export type Database = {
           ai_output: Json | null
           clarifications: Json
           created_at: string
+          error_message: string | null
           feedback: string | null
           id: string
           input_text: string | null
           quote_id: string
           rating: number | null
           rating_comment: string | null
+          run_started_at: string | null
+          status: string
           totals: Json | null
           transcripts: Json
+          updated_at: string
           user_id: string
           version: number
         }
@@ -321,14 +325,18 @@ export type Database = {
           ai_output?: Json | null
           clarifications?: Json
           created_at?: string
+          error_message?: string | null
           feedback?: string | null
           id?: string
           input_text?: string | null
           quote_id: string
           rating?: number | null
           rating_comment?: string | null
+          run_started_at?: string | null
+          status?: string
           totals?: Json | null
           transcripts?: Json
+          updated_at?: string
           user_id?: string
           version: number
         }
@@ -336,14 +344,18 @@ export type Database = {
           ai_output?: Json | null
           clarifications?: Json
           created_at?: string
+          error_message?: string | null
           feedback?: string | null
           id?: string
           input_text?: string | null
           quote_id?: string
           rating?: number | null
           rating_comment?: string | null
+          run_started_at?: string | null
+          status?: string
           totals?: Json | null
           transcripts?: Json
+          updated_at?: string
           user_id?: string
           version?: number
         }
@@ -362,37 +374,79 @@ export type Database = {
           client_address: string | null
           client_name: string | null
           created_at: string
+          estimated_days: number | null
           id: string
           job_title: string | null
           quote_number: number
+          quote_year: number
           selected_tier: string | null
+          show_unit_prices: boolean
           status: string
           updated_at: string
           user_id: string
+          vat_rate: number
         }
         Insert: {
           client_address?: string | null
           client_name?: string | null
           created_at?: string
+          estimated_days?: number | null
           id?: string
           job_title?: string | null
           quote_number?: number
+          quote_year?: number
           selected_tier?: string | null
+          show_unit_prices?: boolean
           status?: string
           updated_at?: string
           user_id?: string
+          vat_rate?: number
         }
         Update: {
           client_address?: string | null
           client_name?: string | null
           created_at?: string
+          estimated_days?: number | null
           id?: string
           job_title?: string | null
           quote_number?: number
+          quote_year?: number
           selected_tier?: string | null
+          show_unit_prices?: boolean
           status?: string
           updated_at?: string
           user_id?: string
+          vat_rate?: number
+        }
+        Relationships: []
+      }
+      series_uplift: {
+        Row: {
+          id: number
+          marca: string
+          plate_style: string | null
+          serie: string
+          short_description: string | null
+          tier_hint: string | null
+          uplift_per_point_eur: number | null
+        }
+        Insert: {
+          id?: never
+          marca: string
+          plate_style?: string | null
+          serie: string
+          short_description?: string | null
+          tier_hint?: string | null
+          uplift_per_point_eur?: number | null
+        }
+        Update: {
+          id?: never
+          marca?: string
+          plate_style?: string | null
+          serie?: string
+          short_description?: string | null
+          tier_hint?: string | null
+          uplift_per_point_eur?: number | null
         }
         Relationships: []
       }
@@ -426,7 +480,10 @@ export type Quote = Tables<'quotes'>
 export type QuoteVersion = Tables<'quote_versions'>
 export type QuoteFile = Tables<'quote_files'>
 export type CatalogueItem = Tables<'catalogue'>
+export type SeriesUplift = Tables<'series_uplift'>
 
 // Column values constrained by CHECK constraints in the DB
 export type QuoteStatus = 'bozza' | 'inviato'
 export type QuoteTier = 'base' | 'media' | 'top'
+export type VersionStatus = 'processing' | 'needs_answers' | 'ready' | 'error'
+export type VatRate = 4 | 10 | 22

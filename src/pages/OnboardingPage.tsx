@@ -58,8 +58,8 @@ function Welcome({ onStart }: { onStart: () => void }) {
       </div>
       <div className="mt-3 rounded-xl bg-gray-100 p-4">
         <p>
-          <strong>Cosa sa già l'app?</strong> Conosce i listini Vimar e BTicino 2026, le regole base di un impianto
-          a norma e come si struttura un preventivo per un appartamento. Quello che non sa è{' '}
+          <strong>Cosa sa già l'app?</strong> Conosce i listini prezzi, prima degli sconti, dei principali produttori,
+          le regole base di un impianto a norma e come si struttura un preventivo per un appartamento. Quello che non sa è{' '}
           <strong>come lavori tu</strong>: per questo ti facciamo qualche domanda.
         </p>
       </div>
