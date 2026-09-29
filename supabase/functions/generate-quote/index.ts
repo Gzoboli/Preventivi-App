@@ -373,7 +373,7 @@ const TECHNICAL_RULES = (method: string) => `Regole tecniche (valgono sempre):
 - ${method === 'a_ore' ? "Questo elettricista lavora a ore: usa righe kind 'ore' (qty = ore stimate, worker 'titolare' o 'aiutante') e righe kind 'materiale' per il materiale." : method === 'misto' ? "Questo elettricista fa l'impianto a punto e il resto a ore: righe 'punto' per i punti, righe 'ore' (worker 'titolare' o 'aiutante') per il resto." : "Questo elettricista lavora a punto: usa righe kind 'punto' con le voci del listino; righe 'ore' solo per lavori che non si fanno a punto."}
 - counts_as_point = true solo per interruttori, deviatori, pulsanti e prese (anche TV e dati) che non hanno un codice di listino.
 - Non calcolare totali, IVA o sconti: li calcola l'app.
-- Esclusioni: parti da quelle abituali dell'elettricista. Ipotesi: tutto ciò che hai supposto.
+- Esclusioni: parti da quelle abituali dell'elettricista. Ipotesi: tutto ciò che hai supposto; aggiungi sempre che il sovrapprezzo delle opzioni Media e Top è stimato dai listini dei produttori e va confermato.
 - tiers: per base, media e top scrivi 3 frasi brevi (what_you_get) su cosa ottiene il cliente con quella serie.
 - estimated_days: giorni lavorativi stimati, o null se non stimabile.`
 

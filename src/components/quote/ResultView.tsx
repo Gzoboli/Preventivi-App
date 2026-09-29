@@ -39,6 +39,9 @@ export function ResultView({ quote, version }: { quote: Quote; version: QuoteVer
                 {tier.uplift_missing ? `da ${eur.format(totale)}` : eur.format(totale)}
               </p>
               <p className="text-sm text-muted">IVA {vat}% inclusa · imponibile {eur.format(tier.imponibile)}</p>
+              {t.id !== 'base' && !tier.uplift_missing && (
+                <p className="mt-2 text-sm text-muted">Sovrapprezzo della serie stimato dai listini: da confermare</p>
+              )}
               {unsure && (
                 <p className="mt-2 flex items-start gap-1 text-sm text-amber-700">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />

@@ -4,6 +4,7 @@ import {
   methodText,
   pricingContext,
   seriesForTier,
+  upliftFor,
 } from '../../supabase/functions/_shared/method.ts'
 import { replyMode, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
@@ -21,7 +22,8 @@ describe('pricingContext', () => {
     expect(c.helperRate).toBe(25)
     expect(c.discountPct).toBe(46) // "Non so"
     expect(c.markupPct).toBe(20)
-    expect(c.uplift).toEqual({ media: 6, top: null }) // Arké known, Eikon unknown
+    // Arké 6 € list above Plana (not listed → 0), at 46% discount and 20% markup; Eikon unknown
+    expect(c.uplift).toEqual({ media: 3.89, top: null })
   })
 
   it('reads typed values, no helper and a known discount', () => {
@@ -46,13 +48,30 @@ describe('pricingContext', () => {
   })
 })
 
+describe('upliftFor', () => {
+  it('charges only the difference from the Base series', () => {
+    const rows = [
+      { marca: 'Vimar', serie: 'Plana', uplift_per_point_eur: 0 },
+      { marca: 'BTicino', serie: 'L.NOW', uplift_per_point_eur: 12 },
+      { marca: 'Vimar', serie: 'Eikon', uplift_per_point_eur: 25 },
+    ]
+    const a: Answers = {
+      q6: { value: '50', source: 'user' },
+      q5m: { value: '0', source: 'user' },
+      q7: { value: { base: { choice: 'bticino_living_now' }, media: { choice: 'vimar_plana' }, top: { choice: 'vimar_eikon' } }, source: 'user' },
+    }
+    expect(upliftFor(a, 'top', rows)).toBe(6.5) // (25 − 12) × 0.5
+    expect(upliftFor(a, 'media', rows)).toBe(0) // cheaper than Base → no discount on the point price
+  })
+})
+
 describe('methodText', () => {
   it('describes answers, their origin, series and the price list in Italian', () => {
     const t = methodText({ q2: { value: 'a_punto', source: 'user' } }, 'Uso sempre tubo da 25', items, uplifts)
     expect(t).toContain('Come fai di solito il prezzo per i privati? → A punto, tutto compreso')
     expect(t).toContain('(risposta dell’elettricista)')
     expect(t).toContain('IVA che applichi di solito ai privati? → 10% (ristrutturazioni in casa) (valore standard, non confermato)')
-    expect(t).toContain('Media: Vimar Arké — sovrapprezzo 6,00 € per punto')
+    expect(t).toContain('Media: Vimar Arké — sovrapprezzo stimato dai listini 3,89 € per punto (ipotesi da confermare)')
     expect(t).toContain('Top: Vimar Eikon — sovrapprezzo per punto non disponibile')
     expect(t).toContain('Uso sempre tubo da 25')
     expect(t).toContain('PRESA10 | Presa 10A / bipresa | punto | 36,00 € | sì')

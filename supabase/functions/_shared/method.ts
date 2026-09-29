@@ -43,13 +43,35 @@ export function seriesForTier(answers: Answers, tier: TierId): { marca: string; 
   return s ? { marca: s.marca, serie: s.serie, label: s.label } : { label: pick.choice }
 }
 
-export function upliftFor(answers: Answers, tier: TierId, rows: UpliftRow[]): number | null {
-  const s = seriesForTier(answers, tier)
+/**
+ * Discount and markup applied to catalogue list prices, as a single multiplier:
+ * list × (1 − wholesaler discount) × (1 + markup on materials).
+ */
+export function materialFactor(answers: Answers): number {
+  const discount = discountPct(effectiveAnswer(answers, 'q6')) ?? DEFAULT_DISCOUNT_PCT
+  const markup = numberFrom(answers, 'q5m') ?? 0
+  return (1 - discount / 100) * (1 + markup / 100)
+}
+
+function listUplift(s: ReturnType<typeof seriesForTier>, rows: UpliftRow[]): number | null {
   if (!('marca' in s)) return null
   const row = rows.find(
     (r) => r.marca.toLowerCase() === s.marca.toLowerCase() && r.serie.toLowerCase() === s.serie.toLowerCase(),
   )
   return row?.uplift_per_point_eur ?? null
+}
+
+/**
+ * Extra € per point for a tier, charged to the client.
+ * `series_uplift` holds the list-price cost of a typical point (switch + share of plate and
+ * support) above the cheapest series; the electrician's per-point prices are taken to be for
+ * their Base series, so the tier pays the difference from Base, at net cost plus markup.
+ */
+export function upliftFor(answers: Answers, tier: TierId, rows: UpliftRow[], factor = materialFactor(answers)): number | null {
+  const up = listUplift(seriesForTier(answers, tier), rows)
+  if (up == null) return null
+  const base = listUplift(seriesForTier(answers, 'base'), rows) ?? 0
+  return Math.round(Math.max(0, up - base) * factor * 100) / 100
 }
 
 export function pricingContext(
@@ -94,7 +116,7 @@ export function methodText(answers: Answers, notes: string | null, priceItems: P
   for (const t of TIERS) {
     const s = seriesForTier(answers, t.id)
     const up = 'marca' in s ? upliftFor(answers, t.id, uplifts) : null
-    const extra = t.id === 'base' ? '' : up == null ? ' — sovrapprezzo per punto non disponibile' : ` — sovrapprezzo ${fmt(up)} per punto`
+    const extra = t.id === 'base' ? '' : up == null ? ' — sovrapprezzo per punto non disponibile' : ` — sovrapprezzo stimato dai listini ${fmt(up)} per punto (ipotesi da confermare)`
     lines.push(`- ${t.label}: ${s.label}${extra}`)
   }
 
