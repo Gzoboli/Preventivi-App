@@ -71,3 +71,4 @@ Work **autonomously**. Gio only wants to be involved in macro decisions, not in 
    - ✅/❌ Checklist "Done when"
    - ⚠️ Problemi aperti e decisioni da prendere
    - Cosa serve da Gio (es. pubblicare una funzione, modifiche al database)
+   - Domande per gli elettricisti: anything only a real electrician can answer (prices, habits, how they present quotes) that would improve the output. Short, numbered, ready to forward. Gio collects them and brings the answers back.
