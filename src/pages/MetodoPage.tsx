@@ -1,19 +1,21 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, Loader2, X } from 'lucide-react'
 import { useProfile } from '../profile/ProfileProvider'
-import { MethodSummary } from '../components/MethodSummary'
+import { MAIN_ROWS, MethodSummary, OTHER_ROWS } from '../components/MethodSummary'
 import { PriceListEditor } from '../components/PriceListEditor'
 import { CompanyForm } from '../components/CompanyForm'
 import { OnboardingBanner } from '../components/OnboardingBanner'
 import { MethodDocuments } from '../components/MethodDocuments'
 import { QuestionBody, validateDraft } from '../components/onboarding/QuestionBody'
 import { useOnboardingActions } from '../lib/onboarding/useOnboardingActions'
-import { effectiveAnswer, type Answer } from '../lib/onboarding/answers'
+import { cleanAnswer, effectiveAnswer, type Answer } from '../lib/onboarding/answers'
 import { getQuestion, type QuestionId } from '../lib/onboarding/questions'
 
 export function MetodoPage() {
   const { answers } = useProfile()
   const [editing, setEditing] = useState<QuestionId[] | null>(null)
+  // Bumped after an edit that may change the price list (q5), to reload the table.
+  const [listVersion, setListVersion] = useState(0)
 
   return (
     <div>
@@ -27,7 +29,12 @@ export function MetodoPage() {
         <div className="space-y-10">
           <section>
             <h2 className="mb-3 text-lg font-semibold">Come lavori</h2>
-            <MethodSummary answers={answers} onEdit={setEditing} />
+            <MethodSummary answers={answers} rows={MAIN_ROWS} onEdit={setEditing} />
+          </section>
+          <section>
+            <h2 className="text-lg font-semibold">Altre impostazioni</h2>
+            <p className="mt-1 mb-3 text-muted">Già impostate con i valori più comuni. Cambiale se lavori diversamente.</p>
+            <MethodSummary answers={answers} rows={OTHER_ROWS} onEdit={setEditing} />
           </section>
           <NotesSection />
           <MethodDocuments />
@@ -35,7 +42,7 @@ export function MetodoPage() {
         <div className="space-y-10">
           <section>
             <h2 className="mb-3 text-lg font-semibold">Il mio listino</h2>
-            <PriceListEditor />
+            <PriceListEditor key={listVersion} />
           </section>
           <section>
             <h2 className="text-lg font-semibold">Dati per il preventivo</h2>
@@ -45,7 +52,13 @@ export function MetodoPage() {
         </div>
       </div>
 
-      {editing && <EditDialog ids={editing} onClose={() => setEditing(null)} />}
+      {editing && (
+        <EditDialog
+          ids={editing}
+          onClose={() => setEditing(null)}
+          onSaved={(ids) => ids.includes('q5') && setListVersion((v) => v + 1)}
+        />
+      )}
     </div>
   )
 }
@@ -119,7 +132,15 @@ function NotesSection() {
 }
 
 /** Edits one or more questions (e.g. "Tariffa" = q3 + q4) with the same components as the onboarding. */
-function EditDialog({ ids, onClose }: { ids: QuestionId[]; onClose: () => void }) {
+function EditDialog({
+  ids,
+  onClose,
+  onSaved,
+}: {
+  ids: QuestionId[]
+  onClose: () => void
+  onSaved: (ids: QuestionId[]) => void
+}) {
   const { answers } = useProfile()
   const { commit } = useOnboardingActions()
   const [drafts, setDrafts] = useState<Record<string, Answer>>(() =>
@@ -146,12 +167,8 @@ function EditDialog({ ids, onClose }: { ids: QuestionId[]; onClose: () => void }
     setSaving(true)
     setError(null)
     try {
-      for (const id of ids) {
-        const answer: Answer = { ...drafts[id], source: 'user' }
-        const v = answer.value
-        if (!(Array.isArray(v) ? v.includes('altro') : v === 'altro')) delete answer.custom_text
-        await commit(id, answer)
-      }
+      await commit(ids.map((id) => [id, cleanAnswer({ ...drafts[id], source: 'user' })]))
+      onSaved(ids)
       onClose()
     } catch {
       setError('Qualcosa non ha funzionato, riprova.')
@@ -177,17 +194,18 @@ function EditDialog({ ids, onClose }: { ids: QuestionId[]; onClose: () => void }
           {ids.map((id) => (
             <QuestionBody
               key={id}
+              compact={ids.length > 1}
               question={getQuestion(id)}
               draft={drafts[id]}
               onChange={(a) => setDrafts((d) => ({ ...d, [id]: a }))}
             />
           ))}
-          {error && (
-            <p className="text-red-700" role="alert">
-              {error}
-            </p>
-          )}
         </div>
+        {error && (
+          <p className="border-t border-line px-4 pt-3 text-red-700 md:px-6" role="alert">
+            {error}
+          </p>
+        )}
         <div className="flex gap-3 border-t border-line px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-6">
           <button type="button" onClick={onClose} className="h-14 rounded-xl border border-line px-5 font-semibold">
             Annulla

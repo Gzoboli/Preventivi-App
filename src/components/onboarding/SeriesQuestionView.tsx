@@ -1,4 +1,4 @@
-import { ALTRO, SERIES, SERIES_RECOMMENDED, TIERS, type TierId } from '../../lib/onboarding/questions'
+import { ALTRO, SERIES, SERIES_DEFAULTS, TIERS, type TierId } from '../../lib/onboarding/questions'
 import type { Answer, Pick, SeriesValue } from '../../lib/onboarding/answers'
 import { inputClass } from './OptionButton'
 
@@ -16,13 +16,11 @@ export function SeriesQuestionView({ value, onChange }: Props) {
   return (
     <div className="space-y-5">
       {TIERS.map((t) => {
-        const pick = v?.[t.id] ?? { choice: SERIES_RECOMMENDED[t.id] }
-        const recommended = SERIES.find((s) => s.id === SERIES_RECOMMENDED[t.id])?.label
+        const pick = v?.[t.id] ?? { choice: SERIES_DEFAULTS[t.id] }
         return (
           <div key={t.id}>
-            <label htmlFor={`serie-${t.id}`} className="mb-2 flex items-baseline justify-between gap-2">
-              <span className="text-base font-semibold">{t.label}</span>
-              <span className="text-sm text-muted">Consigliato: {recommended}</span>
+            <label htmlFor={`serie-${t.id}`} className="mb-2 block text-base font-semibold">
+              {t.label}
             </label>
             <select
               id={`serie-${t.id}`}

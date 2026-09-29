@@ -1,16 +1,15 @@
 import type { Json } from '../../types/db'
 import {
   ALTRO,
-  DISCOUNT_BRANDS,
-  DISCOUNT_OPTIONS,
-  DISCOUNT_RECOMMENDED,
-  DEFAULT_DISCOUNT_PCT,
-  QUESTIONS,
+  NON_SO,
+  ONBOARDING_SCREEN_COUNT,
+  PRICE_ANCHORS,
   SERIES,
-  SERIES_RECOMMENDED,
+  SERIES_DEFAULTS,
   TIERS,
   getQuestion,
-  type DiscountBrand,
+  onboardingScreens,
+  type PriceAnchor,
   type Question,
   type QuestionId,
   type TierId,
@@ -26,16 +25,16 @@ export type Answer<V extends Json = Json> = {
   custom_text?: string
 }
 
-/** A choice with an optional "Altro…" text (used per brand in q6, per tier in q7). */
+/** A choice with an optional "Altro…" text (per row in q5, per tier in q7). */
 export type Pick = { choice: string; custom?: string }
 
-export type DiscountsValue = { brands: Record<DiscountBrand, Pick> }
+export type PricesValue = Record<string, Pick>
 export type SeriesValue = Record<TierId, Pick>
 
 export type OnboardingMeta = {
   /** User chose "Lo faccio dopo" / "Finisco dopo": don't force the onboarding on login. */
   postponed?: boolean
-  /** Last screen reached (0 = welcome, 1..14 = questions), used to resume. */
+  /** Last screen reached (0 = welcome, 1..4 = questions), used to resume. */
   step?: number
 }
 
@@ -57,24 +56,13 @@ export function toJson(answers: Answers): Json {
 export function defaultValue(q: Question): Json {
   switch (q.kind) {
     case 'single':
-      return q.recommended[0]
+      return q.defaults[0]
     case 'multi':
-      return [...q.recommended]
-    case 'discounts': {
-      const brands = Object.fromEntries(
-        DISCOUNT_BRANDS.map((b) => [b, { choice: DISCOUNT_RECOMMENDED }]),
-      ) as Record<DiscountBrand, Pick>
-      return { brands } satisfies DiscountsValue as unknown as Json
-    }
-    case 'series': {
-      const tiers = Object.fromEntries(
-        TIERS.map((t) => [t.id, { choice: SERIES_RECOMMENDED[t.id] }]),
-      ) as SeriesValue
-      return tiers as unknown as Json
-    }
+      return [...q.defaults]
     case 'prices':
-    case 'company':
-      return 'ok'
+      return Object.fromEntries(PRICE_ANCHORS.map((a) => [a.id, { choice: NON_SO }]))
+    case 'series':
+      return Object.fromEntries(TIERS.map((t) => [t.id, { choice: SERIES_DEFAULTS[t.id] }]))
   }
 }
 
@@ -82,52 +70,51 @@ export function defaultAnswer(q: Question): Answer {
   return { value: defaultValue(q), source: 'default' }
 }
 
-/** The stored answer, or the recommended one when the question was never answered. */
-export function effectiveAnswer(answers: Answers, id: QuestionId): Answer {
-  return answers[id] ?? defaultAnswer(getQuestion(id))
+/** True if a stored answer has the shape this question expects (older versions may differ). */
+function isValid(q: Question, a: Answer | undefined): a is Answer {
+  if (!a || typeof a !== 'object') return false
+  const v = a.value
+  switch (q.kind) {
+    case 'single':
+      return typeof v === 'string'
+    case 'multi':
+      return Array.isArray(v)
+    case 'prices':
+    case 'series':
+      return !!v && typeof v === 'object' && !Array.isArray(v)
+  }
 }
 
 export function isAnswered(answers: Answers, id: QuestionId): boolean {
-  return answers[id] !== undefined
+  return isValid(getQuestion(id), answers[id])
 }
 
-export function remainingCount(answers: Answers): number {
-  return QUESTIONS.filter((q) => !isAnswered(answers, q.id)).length
+/** The stored answer, or the usual one when the question was never answered. */
+export function effectiveAnswer(answers: Answers, id: QuestionId): Answer {
+  const q = getQuestion(id)
+  const a = answers[id]
+  return isValid(q, a) ? a : defaultAnswer(q)
 }
 
-/** Index of the first unanswered question (1-based step), or null if all answered. */
-export function firstUnansweredStep(answers: Answers): number | null {
-  const i = QUESTIONS.findIndex((q) => !isAnswered(answers, q.id))
+// ---------- onboarding progress ----------
+
+export function screensFor(answers: Answers): QuestionId[][] {
+  return onboardingScreens(effectiveAnswer(answers, 'q2').value as string)
+}
+
+export function remainingScreens(answers: Answers): number {
+  return screensFor(answers).filter((ids) => !ids.every((id) => isAnswered(answers, id))).length
+}
+
+/** 1-based index of the first unanswered screen, or null when all are answered. */
+export function firstUnansweredScreen(answers: Answers): number | null {
+  const i = screensFor(answers).findIndex((ids) => !ids.every((id) => isAnswered(answers, id)))
   return i === -1 ? null : i + 1
 }
 
-/**
- * "Salta blocco": fill the unanswered questions of the block, from `fromId` on,
- * with recommended values. Returns the new answers and the ids that were filled.
- */
-export function skipBlock(answers: Answers, fromId: QuestionId): { answers: Answers; filled: QuestionId[] } {
-  const from = QUESTIONS.findIndex((q) => q.id === fromId)
-  const block = QUESTIONS[from].block
-  const next: Answers = { ...answers }
-  const filled: QuestionId[] = []
-  for (const q of QUESTIONS.slice(from)) {
-    if (q.block !== block) break
-    if (!isAnswered(next, q.id)) {
-      next[q.id] = defaultAnswer(q)
-      filled.push(q.id)
-    }
-  }
-  return { answers: next, filled }
-}
+export const SUMMARY_STEP = ONBOARDING_SCREEN_COUNT + 1
 
-/** 1-based step of the first question after the block of `id`, or TOTAL+1 when it was the last block. */
-export function stepAfterBlock(id: QuestionId): number {
-  const block = getQuestion(id).block
-  const i = QUESTIONS.findIndex((q) => q.block > block)
-  return i === -1 ? QUESTIONS.length + 1 : i + 1
-}
-
-// ---------- prices ----------
+// ---------- numbers ----------
 
 /** Round to 0,10 €. */
 export function roundTo10Cents(n: number): number {
@@ -138,7 +125,7 @@ export function applyPercent(price: number, pct: number): number {
   return roundTo10Cents(price * (1 + pct / 100))
 }
 
-/** Parses "29,30", "29.30", "1.234,5" → number; null if not a valid non-negative number. */
+/** Parses "29,30", "29.30", "1.234,5 €" → number; null if not a valid non-negative number. */
 export function parseItalianNumber(input: string): number | null {
   let s = input.trim().replace(/\s|€|%/g, '')
   if (!s) return null
@@ -148,17 +135,60 @@ export function parseItalianNumber(input: string): number | null {
 }
 
 const eur = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
+const eurWhole = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+/** "36 €" for whole euros, "34,50 €" otherwise. */
 export function formatEur(n: number | null | undefined): string {
-  return n == null ? '—' : eur.format(n)
+  if (n == null) return '—'
+  return Number.isInteger(n) ? eurWhole.format(n) : eur.format(n)
 }
 
-// ---------- discounts (q6) ----------
+// ---------- q5: typical prices → price list ----------
 
-/** Discount % to store for a brand pick: null when unknown ("Non so" or unparsable "Altro…"). */
-export function discountPct(pick: Pick): number | null {
-  if (pick.choice === ALTRO) return pick.custom ? parseItalianNumber(pick.custom) : null
-  if (pick.choice === DISCOUNT_RECOMMENDED) return null
-  return Number(pick.choice)
+/** Price chosen in a q5 row, or null for "Non so" / unparsable "Altro…". */
+export function anchorPrice(pick: Pick | undefined): number | null {
+  if (!pick || pick.choice === NON_SO) return null
+  if (pick.choice === ALTRO) {
+    const n = pick.custom ? parseItalianNumber(pick.custom) : null
+    return n && n > 0 ? n : null
+  }
+  const n = Number(pick.choice)
+  return Number.isFinite(n) && n > 0 ? n : null
+}
+
+export type StarterItem = { code: string; price_eur: number }
+export type PriceChange = { code: string; price_eur: number; create?: PriceAnchor['create'] }
+
+/**
+ * Turns the q5 answers into price-list changes. Proportional items are scaled
+ * from the STARTER prices, so re-answering never compounds.
+ */
+export function priceChanges(prices: PricesValue, starter: StarterItem[]): PriceChange[] {
+  const starterPrice = new Map(starter.map((s) => [s.code, s.price_eur]))
+  const out: PriceChange[] = []
+  for (const anchor of PRICE_ANCHORS) {
+    const chosen = anchorPrice(prices[anchor.id])
+    if (chosen == null) continue
+    const ratio = chosen / anchor.base
+    if (anchor.code) {
+      out.push({ code: anchor.code, price_eur: roundTo10Cents(chosen), create: starterPrice.has(anchor.code) ? undefined : anchor.create })
+    }
+    for (const code of anchor.scale ?? []) {
+      const base = starterPrice.get(code)
+      if (base != null) out.push({ code, price_eur: roundTo10Cents(base * ratio) })
+    }
+  }
+  return out
+}
+
+// ---------- q6: discount ----------
+
+/** Discount % from the q6 answer: null when unknown ("Non so" or unparsable "Altro…"). */
+export function discountPct(answer: Answer): number | null {
+  const v = answer.value
+  if (v === ALTRO) return answer.custom_text ? parseItalianNumber(answer.custom_text) : null
+  if (v === NON_SO || typeof v !== 'string') return null
+  const n = Number(v)
+  return Number.isFinite(n) ? n : null
 }
 
 // ---------- display (summary) ----------
@@ -168,11 +198,6 @@ function optionLabel(q: Question, id: string): string {
   return q.options.find((o) => o.id === id)?.label ?? id
 }
 
-function pickLabel(pick: Pick, labelOf: (id: string) => string): string {
-  if (pick.choice === ALTRO) return pick.custom?.trim() || 'Altro'
-  return labelOf(pick.choice)
-}
-
 /** Human-readable value of an answer, in Italian. */
 export function formatAnswer(id: QuestionId, answer: Answer): string {
   const q = getQuestion(id)
@@ -180,37 +205,41 @@ export function formatAnswer(id: QuestionId, answer: Answer): string {
   switch (q.kind) {
     case 'single': {
       const v = answer.value as string
-      return v === ALTRO ? custom || 'Altro' : optionLabel(q, v)
+      if (v === ALTRO) return custom || 'Altro'
+      if (id === 'q6' && v === NON_SO) return 'Non so (usiamo il 46%)'
+      return optionLabel(q, v)
     }
     case 'multi': {
-      const v = (answer.value as string[]) ?? []
+      const v = answer.value as string[]
       const labels = v.filter((x) => x !== ALTRO).map((x) => optionLabel(q, x))
       if (v.includes(ALTRO) && custom) labels.push(custom)
       return labels.length ? labels.join(', ') : 'Nessuno'
     }
-    case 'discounts': {
-      const v = answer.value as unknown as DiscountsValue
-      return DISCOUNT_BRANDS.map((b) => {
-        const pick = v?.brands?.[b] ?? { choice: DISCOUNT_RECOMMENDED }
-        const pct = discountPct(pick)
-        if (pct != null) return `${b} ${pct.toLocaleString('it-IT')}%`
-        if (pick.choice === ALTRO && pick.custom) return `${b} ${pick.custom}`
-        return `${b} ${DEFAULT_DISCOUNT_PCT}% (medio)`
-      }).join(' · ')
+    case 'prices': {
+      const v = answer.value as unknown as PricesValue
+      const known = PRICE_ANCHORS.flatMap((a) => {
+        const p = anchorPrice(v[a.id])
+        return p == null ? [] : [`${a.label} ${formatEur(p)}`]
+      })
+      return known.length ? known.join(' · ') : 'Listino di partenza'
     }
     case 'series': {
       const v = answer.value as unknown as SeriesValue
       return TIERS.map((t) => {
-        const pick = v?.[t.id] ?? { choice: SERIES_RECOMMENDED[t.id] }
-        return pickLabel(pick, (sid) => SERIES.find((s) => s.id === sid)?.label ?? sid)
+        const pick = v[t.id] ?? { choice: SERIES_DEFAULTS[t.id] }
+        if (pick.choice === ALTRO) return pick.custom?.trim() || 'Altro'
+        return SERIES.find((s) => s.id === pick.choice)?.label ?? pick.choice
       }).join(' / ')
     }
-    case 'prices':
-    case 'company':
-      return ''
   }
 }
 
-export function discountOptionLabel(id: string): string {
-  return DISCOUNT_OPTIONS.find((o) => o.id === id)?.label ?? id
+/** Drops a stale "Altro…" text when Altro is no longer selected. */
+export function cleanAnswer(answer: Answer): Answer {
+  const v = answer.value
+  const altro = Array.isArray(v) ? v.includes(ALTRO) : v === ALTRO
+  if (altro) return answer
+  const { custom_text: _drop, ...rest } = answer
+  void _drop
+  return rest
 }

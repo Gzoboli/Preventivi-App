@@ -4,13 +4,12 @@ import type { ReactNode } from 'react'
 type Props = {
   selected: boolean
   multi?: boolean
-  recommended?: boolean
   onClick: () => void
   children: ReactNode
 }
 
 /** Big tappable option row (≥ 56px) used by every onboarding question. */
-export function OptionButton({ selected, multi, recommended, onClick, children }: Props) {
+export function OptionButton({ selected, multi, onClick, children }: Props) {
   return (
     <button
       type="button"
@@ -30,9 +29,6 @@ export function OptionButton({ selected, multi, recommended, onClick, children }
         {selected && <Check className="size-4" strokeWidth={3} />}
       </span>
       <span className="flex-1 font-medium">{children}</span>
-      {recommended && (
-        <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-muted">Consigliato</span>
-      )}
     </button>
   )
 }

@@ -1,7 +1,7 @@
-// Side effects of onboarding answers on other tables/storage. RLS scopes everything to the user.
+// Side effects of answers on other tables/storage. RLS scopes everything to the user.
 import { supabase } from '../supabase'
-import { DISCOUNT_BRANDS, DISCOUNT_RECOMMENDED } from './questions'
-import { discountPct, type AnswerSource, type DiscountsValue } from './answers'
+import { DISCOUNT_BRANDS } from './questions'
+import { discountPct, priceChanges, type Answer, type PricesValue } from './answers'
 
 /** Copies the default "a punto" list into price_items if the user has none yet. */
 export async function ensurePriceItems(): Promise<void> {
@@ -13,17 +13,46 @@ export async function ensurePriceItems(): Promise<void> {
   }
 }
 
-/** Writes one `discounts` row per brand from the q6 answer. */
-export async function syncDiscounts(value: DiscountsValue, source: AnswerSource): Promise<void> {
+/** Applies "Quanto fai pagare di solito?" (q5) to the user's price list. */
+export async function applyTypicalPrices(prices: PricesValue): Promise<void> {
+  await ensurePriceItems()
+  const [{ data: starter, error: e1 }, { data: mine, error: e2 }] = await Promise.all([
+    supabase.from('default_price_items').select('code, price_eur'),
+    supabase.from('price_items').select('id, code, sort_order'),
+  ])
+  if (e1) throw e1
+  if (e2) throw e2
+
+  const changes = priceChanges(
+    prices,
+    starter.map((s) => ({ code: s.code, price_eur: Number(s.price_eur) })),
+  )
+  let nextSort = Math.max(0, ...mine.map((m) => m.sort_order)) + 10
+  for (const c of changes) {
+    const existing = mine.find((m) => m.code === c.code)
+    if (existing) {
+      const { error } = await supabase.from('price_items').update({ price_eur: c.price_eur }).eq('id', existing.id)
+      if (error) throw error
+    } else if (c.create) {
+      const { error } = await supabase
+        .from('price_items')
+        .insert({ code: c.code, price_eur: c.price_eur, sort_order: nextSort, ...c.create })
+      if (error) throw error
+      nextSort += 10
+    }
+  }
+}
+
+/** Writes the q6 discount to the `discounts` table, same value for every brand. */
+export async function syncDiscounts(answer: Answer): Promise<void> {
   const { data: existing, error } = await supabase.from('discounts').select('id, brand')
   if (error) throw error
+  const pct = discountPct(answer)
+  const source = answer.source === 'default' || answer.value === 'non_so' ? 'default' : 'user'
 
   for (const brand of DISCOUNT_BRANDS) {
-    const pick = value.brands[brand] ?? { choice: DISCOUNT_RECOMMENDED }
-    const pct = discountPct(pick)
-    const rowSource = source === 'default' || pick.choice === DISCOUNT_RECOMMENDED ? 'default' : 'user'
-    const row = { brand, discount_pct: pct, source: rowSource }
-    const current = existing?.find((d) => d.brand === brand)
+    const row = { brand, discount_pct: pct, source }
+    const current = existing.find((d) => d.brand === brand)
     const { error: writeError } = current
       ? await supabase.from('discounts').update(row).eq('id', current.id)
       : await supabase.from('discounts').insert(row)

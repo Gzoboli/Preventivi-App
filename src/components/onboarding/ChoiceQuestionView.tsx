@@ -29,7 +29,6 @@ export function ChoiceQuestionView({ question, value, onChange }: Props) {
           key={o.id}
           multi={multi}
           selected={selected.includes(o.id)}
-          recommended={question.recommended.includes(o.id)}
           onClick={() => toggle(o.id)}
         >
           {o.label}

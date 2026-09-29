@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import { ChevronRight, ListChecks } from 'lucide-react'
 import { useProfile } from '../profile/ProfileProvider'
-import { remainingCount } from '../lib/onboarding/answers'
+import { remainingScreens } from '../lib/onboarding/answers'
 
 /** "Completa il tuo metodo · mancano X domande" → resumes the onboarding. Hidden once completed. */
 export function OnboardingBanner() {
   const { profile, answers } = useProfile()
   if (!profile || profile.onboarding_completed) return null
-  const left = remainingCount(answers)
+  const left = remainingScreens(answers)
   return (
     <Link
       to="/onboarding"
