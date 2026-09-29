@@ -88,7 +88,7 @@ async function runStep(db: Db, versionId: string, t0: number) {
     .update({ run_started_at: new Date().toISOString() })
     .eq('id', versionId)
     .eq('status', 'processing')
-    .or(`run_started_at.is.null,run_started_at.lt.${cutoff}`)
+    .or(`run_started_at.is.null,run_started_at.lt."${cutoff}"`)
     .select('*')
     .maybeSingle()
   if (!version) return // already running, or nothing to do

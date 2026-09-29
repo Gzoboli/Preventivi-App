@@ -79,13 +79,13 @@ export function QuotePage() {
           }}
         />
       ) : version!.status === 'processing' ? (
-        <GeneratingView version={version!} files={files} />
+        <GeneratingView version={version!} files={files} onChanged={() => void reload()} />
       ) : version!.status === 'needs_answers' ? (
-        <ClarifyView version={version!} onCorrect={() => setCorrecting(true)} />
+        <ClarifyView version={version!} onCorrect={() => setCorrecting(true)} onChanged={() => void reload()} />
       ) : version!.status === 'ready' ? (
         <ResultView quote={quote!} version={version!} />
       ) : (
-        <ErrorView version={version!} />
+        <ErrorView version={version!} onChanged={() => void reload()} />
       )}
     </div>
   )

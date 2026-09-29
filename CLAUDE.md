@@ -30,11 +30,13 @@ Managed from outside this repo (via the Supabase connector). Tables in `public`:
 - `price_items` (user_id, code, name, category, unit, price_eur, includes_material, notes, sort_order).
 - `discounts` (user_id, brand, discount_pct, source).
 - `catalogue` (read-only, ~24k rows) — marca, codice, ean, serie, descrizione, prezzo_listino_eur, unita, categoria, fonte.
-- `quotes` (user_id, quote_number, client_name, client_address, job_title, status 'bozza'|'inviato', selected_tier 'base'|'media'|'top').
-- `quote_versions` (quote_id, user_id, version, input_text, transcripts jsonb, clarifications jsonb, feedback, ai_output jsonb, totals jsonb, rating -1|1, rating_comment).
+- `quotes` (user_id, quote_year + quote_number — per user per year, set by trigger; client_name, client_address, job_title, status 'bozza'|'inviato', selected_tier 'base'|'media'|'top', vat_rate 4|10|22, estimated_days, show_unit_prices).
+- `quote_versions` (quote_id, user_id, version, status 'processing'|'needs_answers'|'ready'|'error', error_message, run_started_at (step lease), input_text, transcripts jsonb, clarifications jsonb, feedback, ai_output jsonb, totals jsonb, rating -1|1, rating_comment, updated_at). Realtime enabled.
+- `series_uplift` (read-only) — marca, serie, tier_hint, uplift_per_point_eur, plate_style, short_description.
+- `ai_usage` (server-only) — log of every paid AI call, used to enforce the limits in `app_config`.
 - `quote_files` (quote_id, user_id, storage_path, file_name, mime_type, kind).
 - `edits_log` (user_id, quote_version_id, line_ref, before, after).
-- `app_config` (server-only key/value): `ai_model`, `transcription_model`, `system_prompt`.
+- `app_config` (server-only key/value): `ai_model`, `ai_effort`, `transcription_model`, `system_prompt`, `limit_generations_per_quote`, `limit_generations_per_user_day`, `limit_generations_total_day`, `limit_audio_files_per_quote`.
 - Storage buckets (private): `logos`, `quote-files`, `audio`. Path must start with the user id: `{user_id}/...`.
 
 `user_id` columns default to `auth.uid()` — don't send it from the client.
@@ -42,7 +44,7 @@ Write TypeScript types in `src/types/db.ts` matching the above (Gio can provide 
 If a schema change is needed: write the SQL in `supabase/migrations/YYYYMMDDHHMM_name.sql`, **don't assume it is applied**, and tell Gio clearly "serve una modifica al database" so it can be applied.
 
 ## Edge Functions
-- Code lives in `supabase/functions/<name>/index.ts` (+ `deno.json` if needed). Deployment is done outside this repo — tell Gio which function changed.
+- Code lives in `supabase/functions/<name>/index.ts` (+ `deno.json` if needed). Pure logic shared with the app (questions, answers, totals, AI schema) lives in `supabase/functions/_shared/` and is imported by both. Deployment is done outside this repo — tell Gio which function changed.
 - Read `app_config` with the service role client; read user data with a client created from the caller's JWT.
 
 ## Workflow

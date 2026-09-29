@@ -9,7 +9,7 @@ const STUCK_AFTER_MS = 6 * 60 * 1000
 
 // ---------------------------------------------------------------- processing
 
-export function GeneratingView({ version, files }: { version: QuoteVersion; files: QuoteFile[] }) {
+export function GeneratingView({ version, files, onChanged }: { version: QuoteVersion; files: QuoteFile[]; onChanged: () => void }) {
   const audio = files.filter((f) => f.kind === 'audio').length
   const docs = files.length - audio
   const transcribed = Array.isArray(version.transcripts) ? version.transcripts.length : 0
@@ -23,7 +23,7 @@ export function GeneratingView({ version, files }: { version: QuoteVersion; file
   steps.push({ label: 'Preparo le voci con i tuoi prezzi', state: transcriptionDone ? 'active' : 'todo' })
   steps.push({ label: 'Calcolo le tre opzioni', state: 'todo' })
 
-  if (stuck) return <StuckView version={version} />
+  if (stuck) return <StuckView version={version} onChanged={onChanged} />
 
   return (
     <div className="mx-auto max-w-lg py-6" role="status" aria-live="polite">
@@ -50,10 +50,11 @@ export function GeneratingView({ version, files }: { version: QuoteVersion; file
   )
 }
 
-function StuckView({ version }: { version: QuoteVersion }) {
+function StuckView({ version, onChanged }: { version: QuoteVersion; onChanged: () => void }) {
   return (
     <ProblemView
       version={version}
+      onChanged={onChanged}
       title="Sembra che si sia bloccato"
       message="La preparazione non va avanti da qualche minuto. Riprova: non perdi nulla di quello che hai scritto."
     />
@@ -62,17 +63,18 @@ function StuckView({ version }: { version: QuoteVersion }) {
 
 // ---------------------------------------------------------------- error
 
-export function ErrorView({ version }: { version: QuoteVersion }) {
+export function ErrorView({ version, onChanged }: { version: QuoteVersion; onChanged: () => void }) {
   return (
     <ProblemView
       version={version}
+      onChanged={onChanged}
       title="Non sono riuscito a preparare il preventivo"
       message={version.error_message || 'Qualcosa non ha funzionato, riprova.'}
     />
   )
 }
 
-function ProblemView({ version, title, message }: { version: QuoteVersion; title: string; message: string }) {
+function ProblemView({ version, title, message, onChanged }: { version: QuoteVersion; title: string; message: string; onChanged: () => void }) {
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   return (
@@ -91,6 +93,7 @@ function ProblemView({ version, title, message }: { version: QuoteVersion; title
           setFailed(false)
           try {
             await retryGeneration(version)
+            onChanged()
           } catch {
             setFailed(true)
           } finally {
@@ -110,7 +113,7 @@ function ProblemView({ version, title, message }: { version: QuoteVersion; title
 
 type Draft = Record<string, { selected: string[]; custom: string; altro: boolean }>
 
-export function ClarifyView({ version, onCorrect }: { version: QuoteVersion; onCorrect: () => void }) {
+export function ClarifyView({ version, onCorrect, onChanged }: { version: QuoteVersion; onCorrect: () => void; onChanged: () => void }) {
   const clarify = version.ai_output as unknown as AiClarify
   const [draft, setDraft] = useState<Draft>(() =>
     Object.fromEntries(clarify.questions.map((q) => [q.id, { selected: [], custom: '', altro: false }])),
@@ -148,6 +151,7 @@ export function ClarifyView({ version, onCorrect }: { version: QuoteVersion; onC
     }))
     try {
       await answerClarify(version, clarify, answers)
+      onChanged()
     } catch {
       setError('Qualcosa non ha funzionato, riprova.')
       setBusy(false)

@@ -34,12 +34,17 @@ export function ResultView({ quote, version }: { quote: Quote; version: QuoteVer
           return (
             <section key={t.id} className={`rounded-xl border p-4 ${t.id === 'media' ? 'border-accent' : 'border-line'}`}>
               <h2 className="font-semibold">{t.label}</h2>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{eur.format(totale)}</p>
+              <p className={`mt-1 text-2xl font-semibold tabular-nums ${tier.uplift_missing ? 'text-amber-700' : ''}`}>
+                {/* Unknown series surcharge: only the Base part is known, so show it as a minimum. */}
+                {tier.uplift_missing ? `da ${eur.format(totale)}` : eur.format(totale)}
+              </p>
               <p className="text-sm text-muted">IVA {vat}% inclusa · imponibile {eur.format(tier.imponibile)}</p>
               {unsure && (
                 <p className="mt-2 flex items-start gap-1 text-sm text-amber-700">
                   <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  {tier.uplift_missing ? 'Sovrapprezzo della serie da confermare' : `${tier.to_confirm_count} voci da confermare`}
+                  {tier.uplift_missing
+                    ? 'Sovrapprezzo della serie da confermare'
+                    : `${tier.to_confirm_count} ${tier.to_confirm_count === 1 ? 'voce' : 'voci'} da confermare`}
                 </p>
               )}
               <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">

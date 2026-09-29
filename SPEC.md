@@ -80,25 +80,47 @@ The app keeps learning how each electrician works without long questionnaires:
 
 ## 3. New quote + AI
 
-**Screen "Nuovo preventivo":**
-- Client name, address, short job title
-- Big text box: "Descrivi il lavoro" (placeholder: "Es. rifacimento impianto appartamento 80 m², 3 camere, cucina, 2 bagni…")
-- **Voice:** "Registra" button (records in browser) AND "Carica vocali" (accepts multiple audio files: .ogg, .opus, .m4a, .mp3, .wav — WhatsApp voice notes are .ogg/.opus)
-- **Documents:** "Allega documenti" — any file, multiple: planimetrie, visure catastali, foto, capitolati, PDF, immagini. Show thumbnails, allow removal. Store in `quote_files`.
-- Primary button: "Genera preventivo"
+Principle (Gio): quality over speed. The AI **always checks its understanding with the electrician before producing a quote**. Built in Task 3.
 
-**Flow when "Genera preventivo" is pressed** (all in a Supabase Edge Function; API keys ONLY in Supabase secrets, never in the frontend):
-1. Transcribe each audio file with OpenAI (model from `app_config.transcription_model`), language Italian.
-2. Call the Anthropic API (model from `app_config.ai_model`, system prompt from `app_config.system_prompt`). Send: the electrician's onboarding answers + "il mio metodo" text + their price_items + discounts + the text + transcripts + attached documents (images and PDFs as native attachments).
-3. The AI must answer with JSON only, in one of two shapes:
-   - **Questions first** — `{ "type": "questions", "questions": [ { "id", "text", "options": [..], "allow_custom": true } ] }` → show them as tappable options + "Altro…" text field, then call the function again with the answers.
-   - **Quote** — `{ "type": "quote", "summary": "…", "job_type": "…", "rooms": [ { "name": "Cucina", "icon": "kitchen", "lines": [ { "price_item_code" | null, "description", "qty", "unit", "unit_price" | null, "to_confirm": bool, "note" } ] } ], "tiers": { "base": {"series": "…", "delta_per_point": 0}, "media": {...}, "top": {...} }, "assumptions": ["…"], "exclusions": ["…"], "estimated_days": n }`
-4. **The app, not the AI, calculates all totals:** line totals, room subtotals, total per tier (base / media / top), IVA, grand total. If `unit_price` is null, use the electrician's price_item price; if still missing, mark "da confermare" (amber).
-5. Save as a new `quote_versions` row.
+### Screen "Nuovo preventivo" (`/preventivi/nuovo` → `/preventivi/:id`)
+- The `quotes` row is created at the **first input** (text, recording or file) — no empty drafts; header "Preventivo 2026/001 · Bozza salvata". Text draft kept on the device until generation.
+- "Cliente e indirizzo (facoltativo)" collapsed row, optional title (the AI proposes one).
+- "Descrivi il lavoro" textarea. Tiles: **Registra** (in-app, MediaRecorder, max 5 min, timer, Stop/Elimina), **Carica vocali** (.ogg .opus .m4a .mp3 .wav .webm, incl. WhatsApp), **Documenti** (any file; the AI reads PDF, images JPEG/PNG/GIF/WebP and text — other files stay attached with a warning).
+- Uploads go straight to storage (`audio/{user_id}/{quote_id}/…`, `quote-files/{user_id}/{quote_id}/…`) + `quote_files` rows. Limits: audio 24 MB each, documents 20 MB each.
+- IVA chips 10 / 22 / 4 %, preset from "Il mio metodo" (`quotes.vat_rate`).
+- "Genera preventivo" enabled with text or at least one voice note.
+- Onboarding not finished → "Stiamo usando i valori più comuni per le domande che hai saltato. Completa il tuo metodo".
 
-Until the real system prompt is ready, the placeholder already in `app_config.system_prompt` is: "Sei un assistente che prepara preventivi per un elettricista italiano. Rispondi solo con JSON nel formato richiesto. Usa solo le voci del listino fornito; se manca qualcosa, segnala to_confirm = true. Se mancano informazioni essenziali (tipo di lavoro, metratura, numero di stanze), fai prima al massimo 4 domande."
+### Quote numbers
+Per electrician and per year (`quotes.quote_year` + `quote_number`, set by a DB trigger): 2026/001, 2026/002…
 
----
+### Generation — Edge Function `generate-quote`
+Supabase Free plan stops a function after 150 s, so the job runs **in steps, one function call each**, chaining itself:
+1. The app inserts a `quote_versions` row (`status='processing'`) and calls the function with `{ quote_version_id }`. The function checks the JWT and ownership, answers 202 and works in the background.
+2. **Transcription step**: voice notes not yet transcribed (OpenAI, `app_config.transcription_model`, Italian), ~70 s max per call, saved in `transcripts`; WhatsApp `.opus` sent as `.ogg` (same format) automatically.
+3. **AI step**: one Anthropic call (`app_config.ai_model` = Claude Sonnet 5.5, adaptive thinking, effort `app_config.ai_effort` = medium, **structured outputs** so the reply always matches the JSON schema), hard cutoff 125 s.
+4. A lease (`quote_versions.run_started_at`) prevents two steps of the same version at once; a run that hasn't moved for 6 minutes shows "Sembra che si sia bloccato · Riprova".
+5. AI context: "Il mio metodo" as readable Italian (every question with the electrician's answer or the usual value, marked as such; "Altro…" texts; notes), the price list, series per tier + `series_uplift`, the job text, transcripts, clarification Q&A, the job's documents and up to 5 "I tuoi documenti" (per-user only; ≤ 20 MB in total), for V2+ the previous version + feedback.
+6. Reply rules (enforced by the schema): first version → first call **must** be `clarify` ("Ho capito così…" + 1–4 questions with options; "Altro…" always available); after 1 round quote or one more round; after 2 rounds a quote.
+7. Result saved in `ai_output` (+ `totals` for a quote); status `needs_answers` / `ready`; errors → `status='error'` with a plain Italian `error_message`. Input is never lost.
+
+### Cost limits (server-side, in `app_config`, logged in `ai_usage`)
+Checked before every paid call: **5 AI runs per quote**, **12 per electrician per day**, **40 per day for all users**; **8 voice notes per quote**. The app can't bypass them. Recommended extra: a monthly spend limit in the Anthropic console.
+
+### Totals — computed in code (`supabase/functions/_shared/totals.ts`, unit-tested)
+- Line price: `kind 'ore'` → hourly rate (own / helper) · price-list code → the electrician's price · not in the list → AI estimate, always **da confermare** (materials: list price − wholesaler discount + markup) · nothing → 0, da confermare.
+- Base = Σ lines. Media / Top = Base + switch/socket points × `series_uplift` of the electrician's series for that tier (points = codes INT, INT2P, PULS, PRESA10, PRESAUNI, PRESATV, PRESADATI, or lines the AI marks as points). Missing uplift → shown as "da … €" + "Sovrapprezzo della serie da confermare".
+- IVA from `quotes.vat_rate`; changeable after generation (the taxable amount doesn't change).
+- `totals = { vat_rate, points, lines[], base, media, top }`, each tier `{ imponibile, iva, totale, to_confirm_count, uplift_missing }`.
+
+### Screens during generation
+- **Sto preparando il preventivo**: steps (Trascrivo N vocali · Leggo i documenti · Preparo le voci con i tuoi prezzi · Calcolo le tre opzioni), "Può volerci qualche minuto. Puoi chiudere l'app…"; live via Realtime + 5 s polling.
+- **Prima di preparare il preventivo**: "Ho capito così" grey box, one card per question (tappable options + "Altro…"), "Continua", "Correggi la descrizione" (back to the form, same version restarts).
+- **Ready**: title, summary, three tier cards, IVA switch, lines by room (da confermare in amber), Ipotesi, Esclusioni, Tempi stimati (Task 4 builds the full review).
+- **Error**: message + "Riprova".
+
+### Home
+List of quotes (title/client, number, date) with chips: In preparazione… · Ti servono risposte · Pronto · Da riprovare · Bozza.
 
 ## 4. Quote review, V2, history
 
