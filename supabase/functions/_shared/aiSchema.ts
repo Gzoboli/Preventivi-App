@@ -36,7 +36,8 @@ const line = {
     qty: { type: 'number' },
     unit: str,
     kind: { type: 'string', enum: ['punto', 'ore', 'materiale', 'forfait'] },
-    worker: { type: ['string', 'null'], enum: ['titolare', 'aiutante', null] },
+    // Anthropic rejects an enum mixed with a type list: nullable enums use anyOf.
+    worker: { anyOf: [{ type: 'string', enum: ['titolare', 'aiutante'] }, { type: 'null' }] },
     unit_price: { type: ['number', 'null'] },
     counts_as_point: { type: 'boolean' },
     to_confirm: { type: 'boolean' },

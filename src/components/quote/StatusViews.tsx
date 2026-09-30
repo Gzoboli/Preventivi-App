@@ -111,17 +111,20 @@ function ProblemView({ version, title, message, onChanged }: { version: QuoteVer
 
 // ---------------------------------------------------------------- questions
 
-type Draft = Record<string, { selected: string[]; custom: string; altro: boolean }>
+type Draft = Record<string, { selected: string[]; custom: string }>
+
+/** The text box under each question replaces any "Altro…" option the AI might still add. */
+const isAltroOption = (o: string) => /^\s*altro\b|scrivo io/i.test(o)
 
 export function ClarifyView({ version, onCorrect, onChanged }: { version: QuoteVersion; onCorrect: () => void; onChanged: () => void }) {
   const clarify = version.ai_output as unknown as AiClarify
   const [draft, setDraft] = useState<Draft>(() =>
-    Object.fromEntries(clarify.questions.map((q) => [q.id, { selected: [], custom: '', altro: false }])),
+    Object.fromEntries(clarify.questions.map((q) => [q.id, { selected: [], custom: '' }])),
   )
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const answered = (id: string) => draft[id].selected.length > 0 || (draft[id].altro && !!draft[id].custom.trim())
+  const answered = (id: string) => draft[id].selected.length > 0 || !!draft[id].custom.trim()
   const complete = clarify.questions.every((q) => answered(q.id))
 
   function toggle(qid: string, option: string, multi: boolean) {
@@ -129,25 +132,18 @@ export function ClarifyView({ version, onCorrect, onChanged }: { version: QuoteV
       const cur = d[qid]
       const has = cur.selected.includes(option)
       const selected = multi ? (has ? cur.selected.filter((o) => o !== option) : [...cur.selected, option]) : has ? [] : [option]
-      return { ...d, [qid]: { ...cur, selected, altro: multi ? cur.altro : false } }
-    })
-  }
-
-  function toggleAltro(qid: string, multi: boolean) {
-    setDraft((d) => {
-      const cur = d[qid]
-      return { ...d, [qid]: { ...cur, altro: !cur.altro, selected: multi ? cur.selected : [] } }
+      return { ...d, [qid]: { ...cur, selected } }
     })
   }
 
   async function submit() {
-    if (!complete) return setError('Rispondi a tutte le domande (anche con "Altro…").')
+    if (!complete) return setError('Rispondi a tutte le domande: tocca una risposta o scrivila.')
     setBusy(true)
     setError(null)
     const answers: ClarifyAnswer[] = clarify.questions.map((q) => ({
       id: q.id,
       selected: draft[q.id].selected,
-      custom: draft[q.id].altro ? draft[q.id].custom.trim() || null : null,
+      custom: draft[q.id].custom.trim() || null,
     }))
     try {
       await answerClarify(version, clarify, answers)
@@ -175,25 +171,20 @@ export function ClarifyView({ version, onCorrect, onChanged }: { version: QuoteV
             </p>
             {q.multi && <p className="text-sm text-muted">Puoi sceglierne più di una.</p>}
             <div className="mt-3 flex flex-wrap gap-2" role={q.multi ? 'group' : 'radiogroup'} aria-label={q.text}>
-              {q.options.map((o) => (
+              {q.options.filter((o) => !isAltroOption(o)).map((o) => (
                 <Chip key={o} selected={draft[q.id].selected.includes(o)} onClick={() => toggle(q.id, o, q.multi)}>
                   {o}
                 </Chip>
               ))}
-              <Chip selected={draft[q.id].altro} onClick={() => toggleAltro(q.id, q.multi)}>
-                Altro…
-              </Chip>
             </div>
-            {draft[q.id].altro && (
-              <input
-                autoFocus
-                value={draft[q.id].custom}
-                onChange={(e) => setDraft((d) => ({ ...d, [q.id]: { ...d[q.id], custom: e.target.value } }))}
-                placeholder="Scrivi la tua risposta"
-                aria-label={`${q.text} — altra risposta`}
-                className={`${inputClass} mt-3`}
-              />
-            )}
+            <textarea
+              rows={2}
+              value={draft[q.id].custom}
+              onChange={(e) => setDraft((d) => ({ ...d, [q.id]: { ...d[q.id], custom: e.target.value } }))}
+              placeholder="Altro o dettagli: scrivi qui"
+              aria-label={`${q.text}: altro o dettagli`}
+              className={`${inputClass} mt-3 h-auto min-h-12 py-3`}
+            />
           </fieldset>
         ))}
       </div>

@@ -96,6 +96,8 @@ describe('reply rules', () => {
         expect(o.additionalProperties).toBe(false)
         expect(Object.keys(o.properties as object).sort()).toEqual([...(o.required as string[])].sort())
       }
+      // The API rejects an enum next to a list of types (e.g. ['string', 'null']).
+      if (o.enum) expect(typeof o.type).toBe('string')
       Object.values(o).forEach(walk)
     }
     walk(replySchema('either'))

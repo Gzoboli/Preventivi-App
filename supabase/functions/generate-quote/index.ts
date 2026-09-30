@@ -145,6 +145,7 @@ async function step(db: Db, version: Row, t0: number): Promise<'continue' | 'don
   }
 
   // 2. AI
+  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY is not set') // before counting an attempt
   await checkLimits(db, userId, quote.id as string, config)
   const { data: usage } = await db
     .from('ai_usage')
@@ -155,7 +156,17 @@ async function step(db: Db, version: Row, t0: number): Promise<'continue' | 'don
   const clarifications = (version.clarifications as Clarification[] | null) ?? []
   const mode = replyMode(version.version as number, clarifications.length)
   const context = await buildContext(db, userId, quote, version, files, transcripts, clarifications, mode)
-  const { reply, usage: tokens } = await askAi(config, context, mode, t0)
+  let answer: Awaited<ReturnType<typeof askAi>>
+  try {
+    answer = await askAi(config, context, mode, t0)
+  } catch (e) {
+    // Requests the API rejects (4xx) are not billed: don't count them against the limits.
+    if (usage && e instanceof Anthropic.APIError && e.status != null && e.status >= 400 && e.status < 500) {
+      await db.from('ai_usage').delete().eq('id', usage.id)
+    }
+    throw e
+  }
+  const { reply, usage: tokens } = answer
   if (usage) await db.from('ai_usage').update(tokens).eq('id', usage.id)
 
   if (reply.type === 'clarify') {
@@ -367,7 +378,7 @@ async function buildContext(
 
 const TECHNICAL_RULES = (method: string) => `Regole tecniche (valgono sempre):
 - Rispondi solo con l'oggetto JSON richiesto, nel campo "reply". Tutto in italiano.
-- Prima di preparare un preventivo verifica sempre di aver capito il lavoro. In "understanding" riassumi in modo semplice cosa hai capito (tipo di intervento, stanze, metrature, cose incerte). Poi fai da 1 a 4 domande brevi, ognuna con 2–5 opzioni corte da toccare; l'elettricista può sempre scrivere una risposta diversa. Chiedi solo ciò che cambia davvero il preventivo.
+- Prima di preparare un preventivo verifica sempre di aver capito il lavoro. In "understanding" riassumi in modo semplice cosa hai capito (tipo di intervento, stanze, metrature, cose incerte). Poi fai da 1 a 4 domande brevi, ognuna con 2–5 opzioni corte da toccare. Non mettere opzioni come "Altro" o "Scrivo io": sotto ogni domanda l'elettricista ha già un campo per scrivere dettagli o una risposta diversa. Chiedi solo ciò che cambia davvero il preventivo.
 - Nel preventivo usa le voci del listino dell'elettricista: metti il codice in price_item_code e unit_price = null. Non inventare prezzi per voci che sono nel listino.
 - Per voci che non sono nel listino: price_item_code = null, unit_price = tua stima (per il materiale: prezzo di listino prima degli sconti), to_confirm = true.
 - ${method === 'a_ore' ? "Questo elettricista lavora a ore: usa righe kind 'ore' (qty = ore stimate, worker 'titolare' o 'aiutante') e righe kind 'materiale' per il materiale." : method === 'misto' ? "Questo elettricista fa l'impianto a punto e il resto a ore: righe 'punto' per i punti, righe 'ore' (worker 'titolare' o 'aiutante') per il resto." : "Questo elettricista lavora a punto: usa righe kind 'punto' con le voci del listino; righe 'ore' solo per lavori che non si fanno a punto."}
