@@ -1,4 +1,5 @@
 // Shared by the app (Vite) and Edge Functions (Deno): pure TypeScript, no imports outside _shared.
+import { formatEurShort } from './format.ts'
 import {
   ALTRO,
   NON_SO,
@@ -7,8 +8,9 @@ import {
   SERIES,
   SERIES_DEFAULTS,
   TIERS,
+  ONBOARDING_SCREENS,
   getQuestion,
-  onboardingScreens,
+  type LegacyQuestionId,
   type PriceAnchor,
   type Question,
   type QuestionId,
@@ -41,7 +43,7 @@ export type OnboardingMeta = {
   step?: number
 }
 
-export type Answers = Partial<Record<QuestionId, Answer>> & { _meta?: OnboardingMeta }
+export type Answers = Partial<Record<QuestionId | LegacyQuestionId, Answer>> & { _meta?: OnboardingMeta }
 
 // ---------- parsing stored JSON ----------
 
@@ -88,21 +90,40 @@ function isValid(q: Question, a: Answer | undefined): a is Answer {
   }
 }
 
+/**
+ * Questions that replaced older ones (Task 3b): an answer given to the old question still counts.
+ * q2 "Come fai di solito il prezzo" → q15; q5m "Quanto ricarichi" → q17 (same options).
+ */
+const LEGACY: Partial<Record<QuestionId, { from: LegacyQuestionId; map?: Record<string, string> }>> = {
+  q15: { from: 'q2', map: { a_punto: 'a_punto', a_ore: 'ore_materiali', misto: 'dipende' } },
+  q17: { from: 'q5m' },
+}
+
+/** The answer the user gave (to this question or to the one it replaced), if any. */
+function storedAnswer(answers: Answers, id: QuestionId): Answer | undefined {
+  const q = getQuestion(id)
+  const a = answers[id]
+  if (isValid(q, a)) return a
+  const legacy = LEGACY[id]
+  const old = legacy && answers[legacy.from]
+  if (!old || typeof old.value !== 'string') return undefined
+  const value = legacy.map ? legacy.map[old.value] : old.value
+  return value ? { ...old, value } : undefined
+}
+
 export function isAnswered(answers: Answers, id: QuestionId): boolean {
-  return isValid(getQuestion(id), answers[id])
+  return storedAnswer(answers, id) !== undefined
 }
 
 /** The stored answer, or the usual one when the question was never answered. */
 export function effectiveAnswer(answers: Answers, id: QuestionId): Answer {
-  const q = getQuestion(id)
-  const a = answers[id]
-  return isValid(q, a) ? a : defaultAnswer(q)
+  return storedAnswer(answers, id) ?? defaultAnswer(getQuestion(id))
 }
 
 // ---------- onboarding progress ----------
 
-export function screensFor(answers: Answers): QuestionId[][] {
-  return onboardingScreens(effectiveAnswer(answers, 'q2').value as string)
+export function screensFor(_answers?: Answers): QuestionId[][] {
+  return ONBOARDING_SCREENS
 }
 
 export function remainingScreens(answers: Answers): number {
@@ -137,12 +158,9 @@ export function parseItalianNumber(input: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null
 }
 
-const eur = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
-const eurWhole = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 /** "36 €" for whole euros, "34,50 €" otherwise. */
 export function formatEur(n: number | null | undefined): string {
-  if (n == null) return '—'
-  return Number.isInteger(n) ? eurWhole.format(n) : eur.format(n)
+  return n == null ? '—' : formatEurShort(n)
 }
 
 // ---------- q5: typical prices → price list ----------
@@ -209,7 +227,7 @@ export function formatAnswer(id: QuestionId, answer: Answer): string {
     case 'single': {
       const v = answer.value as string
       if (v === ALTRO) return custom || 'Altro'
-      if (id === 'q6' && v === NON_SO) return 'Non so (usiamo il 46%)'
+      if (id === 'q6' && v === NON_SO) return 'Non so (usiamo il 46,6%)'
       return optionLabel(q, v)
     }
     case 'multi': {

@@ -4,13 +4,14 @@ import { supabase } from '../lib/supabase'
 import { ensurePriceItems } from '../lib/onboarding/persist'
 import { applyPercent, parseItalianNumber } from '../lib/onboarding/answers'
 import type { PriceItem } from '../types/db'
+import { formatAmount } from '../../supabase/functions/_shared/format.ts'
 import { inputClass } from './onboarding/OptionButton'
 
 const PERCENT_CHIPS = [-5, 5, 10]
 const OTHER_CATEGORY = 'Altre voci'
 
 const priceText = (n: number | null) =>
-  n == null ? '' : n.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  n == null ? '' : formatAmount(n)
 
 type Status = 'loading' | 'ready' | 'error'
 

@@ -5,8 +5,11 @@
 // usual values and can be changed in "Il mio metodo" ("Altre impostazioni").
 
 export type QuestionId =
-  | 'q1' | 'q2' | 'q3' | 'q4' | 'q5' | 'q5m' | 'q6'
-  | 'q7' | 'q8' | 'q9' | 'q10' | 'q11' | 'q12' | 'q13'
+  | 'q1' | 'q3' | 'q4' | 'q5' | 'q6' | 'q7' | 'q8' | 'q9' | 'q10'
+  | 'q11' | 'q12' | 'q13' | 'q15' | 'q16' | 'q17' | 'q18'
+
+/** Questions replaced in Task 3b: their stored answers are still read (see answers.ts). */
+export type LegacyQuestionId = 'q2' | 'q5m'
 
 export type Option = { id: string; label: string }
 
@@ -30,14 +33,14 @@ export const NON_SO = 'non_so'
 
 export const QUESTIONS: Question[] = [
   {
-    id: 'q2', kind: 'single',
-    title: 'Come fai di solito il prezzo per i privati?',
+    id: 'q15', kind: 'single',
+    title: 'Come preferisci fare il prezzo?',
     options: [
-      { id: 'a_punto', label: 'A punto, tutto compreso (materiale + manodopera)' },
-      { id: 'a_ore', label: 'A ore + materiale a parte' },
-      { id: 'misto', label: "A punto l'impianto, a ore il resto" },
+      { id: 'dipende', label: 'Dipende dal lavoro, proponimelo tu' },
+      { id: 'a_punto', label: 'Sempre a punto' },
+      { id: 'ore_materiali', label: 'Sempre ore + materiali' },
     ],
-    defaults: ['a_punto'],
+    defaults: ['dipende'],
   },
   {
     id: 'q3', kind: 'single',
@@ -62,16 +65,37 @@ export const QUESTIONS: Question[] = [
     defaults: ['25'],
   },
   {
+    id: 'q16', kind: 'single',
+    title: 'Di solito chi lavora con te?',
+    helper: 'Te lo chiederemo comunque per ogni lavoro.',
+    options: [
+      { id: 'solo', label: 'Lavoro da solo' },
+      { id: 'aiutante', label: 'Io + un aiutante' },
+      { id: 'squadra', label: 'Squadra di 3 o più' },
+    ],
+    defaults: ['aiutante'],
+  },
+  {
+    id: 'q18', kind: 'single',
+    title: 'Quante ore dura la tua giornata in cantiere?',
+    options: [
+      { id: '7', label: '7 ore' },
+      { id: '8', label: '8 ore' },
+      { id: '9', label: '9 ore' },
+    ],
+    defaults: ['8'],
+  },
+  {
     id: 'q5', kind: 'prices',
     title: 'Quanto fai pagare di solito?',
     helper: 'Prezzo finale al cliente: materiale e manodopera, IVA esclusa. Il tuo sconto grossista è già dentro. Rispondi solo a quelle che sai: potrai correggere ogni prezzo nei preventivi.',
   },
   {
-    id: 'q5m', kind: 'single',
-    title: 'Quanto ricarichi sul materiale?',
+    id: 'q17', kind: 'single',
+    title: 'Che ricarico metti sul materiale?',
     helper: 'In percentuale sul prezzo a cui lo compri.',
     options: [
-      { id: '0', label: 'Niente' },
+      { id: '0', label: '0%' },
       { id: '10', label: '10%' },
       { id: '20', label: '20%' },
       { id: '30', label: '30%' },
@@ -81,7 +105,7 @@ export const QUESTIONS: Question[] = [
   {
     id: 'q6', kind: 'single',
     title: 'Che sconto hai dal grossista sul listino?',
-    helper: 'Serve per il materiale fuori dai prezzi a punto (es. lampade, apparecchi particolari). Se non lo sai, usiamo uno sconto medio del 46%.',
+    helper: 'Serve per il materiale fuori dai prezzi a punto (es. lampade, apparecchi particolari). Se non lo sai, usiamo uno sconto medio del 46,6%.',
     options: [
       { id: 'non_so', label: 'Non so' },
       { id: '40', label: '40%' },
@@ -181,17 +205,9 @@ export function getQuestion(id: QuestionId): Question {
 
 // ---- onboarding screens ----
 
-/** Pricing method chosen in q2 (effective value). */
-export type PricingMethod = 'a_punto' | 'a_ore' | 'misto' | string
-
-/**
- * The 4 sign-up screens. Screen 3 depends on how they price:
- * per point → typical prices (q5), hourly → materials markup (q5m).
- */
-export function onboardingScreens(pricing: PricingMethod): QuestionId[][] {
-  return [['q2'], ['q3', 'q4'], [pricing === 'a_ore' ? 'q5m' : 'q5'], ['q6']]
-}
-export const ONBOARDING_SCREEN_COUNT = 4
+/** The 4 sign-up screens: pricing method, team and rates, typical prices, materials. */
+export const ONBOARDING_SCREENS: QuestionId[][] = [['q15'], ['q3', 'q4', 'q16', 'q18'], ['q5'], ['q6', 'q17']]
+export const ONBOARDING_SCREEN_COUNT = ONBOARDING_SCREENS.length
 
 // ---- q5: typical prices ----
 
@@ -245,13 +261,14 @@ export const PRICE_ANCHORS: PriceAnchor[] = [
 
 export const DISCOUNT_BRANDS = ['Vimar', 'BTicino', 'Schneider'] as const
 /** Discount assumed when the electrician doesn't know theirs. */
-export const DEFAULT_DISCOUNT_PCT = 46
+export const DEFAULT_DISCOUNT_PCT = 46.6
 
 // ---- q7: series ----
 
 export const TIERS = [
   { id: 'base', label: 'Base' },
-  { id: 'media', label: 'Media' },
+  // Stored as "media" (quotes.selected_tier), shown as "Consigliata".
+  { id: 'media', label: 'Consigliata' },
   { id: 'top', label: 'Top' },
 ] as const
 export type TierId = (typeof TIERS)[number]['id']

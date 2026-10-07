@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   defaultVatRate,
+  answeredHoursPerDay,
   methodText,
-  pricingContext,
+  pricingInputs,
   seriesForTier,
   upliftFor,
 } from '../../supabase/functions/_shared/method.ts'
-import { replyMode, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
+import { replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
 
 const items = [{ code: 'PRESA10', name: 'Presa 10A / bipresa', category: 'Prese', unit: 'punto', price_eur: 36, includes_material: true }]
@@ -15,30 +16,38 @@ const uplifts = [
   { marca: 'Vimar', serie: 'Eikon', uplift_per_point_eur: null },
 ]
 
-describe('pricingContext', () => {
+describe('pricingInputs', () => {
   it('uses the usual values when nothing was answered', () => {
-    const c = pricingContext({}, items, 10, uplifts)
+    const c = pricingInputs({}, items, [], uplifts, 10)
     expect(c.hourlyRate).toBe(60)
     expect(c.helperRate).toBe(25)
-    expect(c.discountPct).toBe(46) // "Non so"
+    expect(c.defaultDiscountPct).toBe(46.6) // "Non so"
     expect(c.markupPct).toBe(20)
-    // Arké 6 € list above Plana (not listed → 0), at 46% discount and 20% markup; Eikon unknown
-    expect(c.uplift).toEqual({ media: 3.89, top: null })
+    expect(c.hoursPerDay).toBe(8)
+    // Arké 6 € list above Plana (not listed → 0), at 46,6% discount and 20% markup; Eikon unknown
+    expect(c.uplift).toEqual({ media: 3.84, top: null })
   })
 
-  it('reads typed values, no helper and a known discount', () => {
+  it('reads typed values, no helper, per-brand discounts', () => {
     const a: Answers = {
       q3: { value: 'altro', source: 'user', custom_text: '55 €' },
       q4: { value: 'nessuno', source: 'user' },
       q6: { value: '40', source: 'user' },
       q7: { value: { base: { choice: 'vimar_plana' }, consigliata: { choice: 'altro', custom: 'Gewiss Chorus' }, top: { choice: 'vimar_eikon' } }, source: 'user' },
     }
-    const c = pricingContext(a, items, 22, uplifts)
+    const c = pricingInputs(a, items, [{ brand: 'BTicino', discount_pct: 50 }], uplifts, 22)
     expect(c.hourlyRate).toBe(55)
     expect(c.helperRate).toBeNull()
-    expect(c.discountPct).toBe(40)
+    expect(c.discounts.bticino).toBe(50)
+    expect(c.discounts.vimar).toBe(40) // no row: the q6 answer
+    expect(c.defaultDiscountPct).toBe(40)
     expect(c.uplift.media).toBeNull() // typed series → unknown uplift
     expect(seriesForTier(a, 'media')).toEqual({ label: 'Gewiss Chorus' }) // old "consigliata" key still read
+  })
+
+  it('uses the working day only when he answered it', () => {
+    expect(answeredHoursPerDay({})).toBeNull()
+    expect(answeredHoursPerDay({ q18: { value: '9', source: 'user' } })).toBe(9)
   })
 
   it('picks the default IVA for a new quote', () => {
@@ -57,7 +66,7 @@ describe('upliftFor', () => {
     ]
     const a: Answers = {
       q6: { value: '50', source: 'user' },
-      q5m: { value: '0', source: 'user' },
+      q17: { value: '0', source: 'user' },
       q7: { value: { base: { choice: 'bticino_living_now' }, media: { choice: 'vimar_plana' }, top: { choice: 'vimar_eikon' } }, source: 'user' },
     }
     expect(upliftFor(a, 'top', rows)).toBe(6.5) // (25 − 12) × 0.5
@@ -67,27 +76,20 @@ describe('upliftFor', () => {
 
 describe('methodText', () => {
   it('describes answers, their origin, series and the price list in Italian', () => {
-    const t = methodText({ q2: { value: 'a_punto', source: 'user' } }, 'Uso sempre tubo da 25', items, uplifts)
-    expect(t).toContain('Come fai di solito il prezzo per i privati? → A punto, tutto compreso')
+    const t = methodText({ q15: { value: 'a_punto', source: 'user' } }, 'Uso sempre tubo da 25', items, uplifts).replace(/\u00a0/g, ' ')
+    expect(t).toContain('Come preferisci fare il prezzo? → Sempre a punto')
     expect(t).toContain('(risposta dell’elettricista)')
     expect(t).toContain('IVA che applichi di solito ai privati? → 10% (ristrutturazioni in casa) (valore standard, non confermato)')
-    expect(t).toContain('Media: Vimar Arké — sovrapprezzo stimato dai listini 3,89 € per punto (ipotesi da confermare)')
-    expect(t).toContain('Top: Vimar Eikon — sovrapprezzo per punto non disponibile')
+    expect(t).toContain('Consigliata: Vimar Arké — sovrapprezzo stimato dai listini 3,84 € per ogni frutto cambiato (ipotesi da confermare)')
+    expect(t).toContain('Top: Vimar Eikon — sovrapprezzo per frutto cambiato non disponibile')
     expect(t).toContain('Uso sempre tubo da 25')
     expect(t).toContain('PRESA10 | Presa 10A / bipresa | punto | 36,00 € | sì')
-    expect(t).not.toContain('Quanto ricarichi') // only for hourly pricing
+    expect(t).toContain('Che ricarico metti sul materiale? → 20%')
+    expect(t).toContain('- Vimar: 46,6%')
   })
 })
 
 describe('reply rules', () => {
-  it('forces a clarify round first, a quote after two rounds', () => {
-    expect(replyMode(1, 0)).toBe('clarify_only')
-    expect(replyMode(1, 1)).toBe('either')
-    expect(replyMode(1, 2)).toBe('quote_only')
-    expect(replyMode(2, 0)).toBe('either')
-    expect(replyMode(2, 1)).toBe('quote_only')
-  })
-
   it('builds strict schemas (every object closed)', () => {
     const walk = (s: unknown): void => {
       if (!s || typeof s !== 'object') return
@@ -100,6 +102,6 @@ describe('reply rules', () => {
       if (o.enum) expect(typeof o.type).toBe('string')
       Object.values(o).forEach(walk)
     }
-    walk(replySchema('either'))
+    for (const mode of ['conversation', 'generate', 'revise', 'apply'] as const) walk(replySchema(mode))
   })
 })

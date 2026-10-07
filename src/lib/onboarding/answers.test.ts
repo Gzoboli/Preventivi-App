@@ -13,7 +13,7 @@ import {
   screensFor,
   type Answers,
 } from './answers'
-import { PRICE_ANCHORS, QUESTIONS, onboardingScreens } from './questions'
+import { PRICE_ANCHORS, QUESTIONS } from './questions'
 
 const STARTER = [
   { code: 'INT', price_eur: 29.3 },
@@ -50,10 +50,8 @@ describe('questions', () => {
     }
   })
 
-  it('onboarding has 4 screens; screen 3 depends on how they price', () => {
-    expect(onboardingScreens('a_punto')).toEqual([['q2'], ['q3', 'q4'], ['q5'], ['q6']])
-    expect(onboardingScreens('a_ore')[2]).toEqual(['q5m'])
-    expect(onboardingScreens('misto')[2]).toEqual(['q5'])
+  it('onboarding has 4 screens: method, team and rates, prices, materials', () => {
+    expect(screensFor({})).toEqual([['q15'], ['q3', 'q4', 'q16', 'q18'], ['q5'], ['q6', 'q17']])
   })
 })
 
@@ -77,13 +75,18 @@ describe('numbers', () => {
 describe('progress', () => {
   it('counts remaining screens and finds where to resume', () => {
     expect(remainingScreens({})).toBe(4)
-    const a: Answers = { q2: { value: 'a_punto', source: 'user' }, q3: { value: '50', source: 'user' } }
-    expect(remainingScreens(a)).toBe(3) // screen 2 needs q3 AND q4
+    const a: Answers = { q15: { value: 'a_punto', source: 'user' }, q3: { value: '50', source: 'user' } }
+    expect(remainingScreens(a)).toBe(3) // screen 2 needs q3, q4, q16 and q18
     expect(firstUnansweredScreen(a)).toBe(2)
   })
 
-  it('switches screen 3 to the markup question for hourly pricing', () => {
-    expect(screensFor({ q2: { value: 'a_ore', source: 'user' } })[2]).toEqual(['q5m'])
+  it('keeps answers given to the replaced questions (q2 → q15, q5m → q17)', () => {
+    const old: Answers = { q2: { value: 'a_ore', source: 'user' }, q5m: { value: '30', source: 'user' } }
+    expect(effectiveAnswer(old, 'q15')).toEqual({ value: 'ore_materiali', source: 'user' })
+    expect(effectiveAnswer({ q2: { value: 'misto', source: 'user' } }, 'q15').value).toBe('dipende')
+    expect(effectiveAnswer(old, 'q17')).toEqual({ value: '30', source: 'user' })
+    expect(firstUnansweredScreen(old)).toBe(2) // screen 1 counts as answered
+    expect(effectiveAnswer({}, 'q15')).toEqual({ value: 'dipende', source: 'default' })
   })
 
   it('uses the usual answer when missing or stored in an older shape', () => {
@@ -142,7 +145,7 @@ describe('display', () => {
     })
     // Intl uses a non-breaking space before "€"
     expect(prices.replace(/ /g, ' ')).toBe('Presa 10A / bipresa 36 € · Predisposizione condizionatore 125,50 €')
-    expect(formatAnswer('q6', effectiveAnswer({}, 'q6'))).toBe('Non so (usiamo il 46%)')
+    expect(formatAnswer('q6', effectiveAnswer({}, 'q6'))).toBe('Non so (usiamo il 46,6%)')
     expect(formatAnswer('q7', effectiveAnswer({}, 'q7'))).toBe('Vimar Plana / Vimar Arké / Vimar Eikon')
   })
 

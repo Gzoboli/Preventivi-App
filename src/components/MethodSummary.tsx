@@ -8,25 +8,23 @@ const one = (id: QuestionId) => () => [id]
 
 /** The 4 onboarding topics. */
 export const MAIN_ROWS: Row[] = [
-  { label: 'Prezzo', ids: one('q2') },
+  { label: 'Prezzo', ids: one('q15') },
   {
-    label: 'Tariffa',
-    ids: () => ['q3', 'q4'],
+    label: 'Tariffe e squadra',
+    ids: () => ['q3', 'q4', 'q16', 'q18'],
     format: (a) => {
       const rate = formatAnswer('q3', effectiveAnswer(a, 'q3'))
       const helper = effectiveAnswer(a, 'q4')
-      return helper.value === 'nessuno' ? `${rate} (senza aiutante)` : `${rate} (+ aiutante ${formatAnswer('q4', helper)})`
+      const rates = helper.value === 'nessuno' ? `${rate} (senza aiutante)` : `${rate} (+ aiutante ${formatAnswer('q4', helper)})`
+      return `${rates} · ${formatAnswer('q16', effectiveAnswer(a, 'q16'))} · giornata di ${formatAnswer('q18', effectiveAnswer(a, 'q18'))}`
     },
   },
+  { label: 'I tuoi prezzi', ids: one('q5') },
   {
-    label: 'I tuoi prezzi',
-    ids: (a) => [effectiveAnswer(a, 'q2').value === 'a_ore' ? 'q5m' : 'q5'],
-    format: (a) =>
-      effectiveAnswer(a, 'q2').value === 'a_ore'
-        ? `Ricarico sul materiale: ${formatAnswer('q5m', effectiveAnswer(a, 'q5m'))}`
-        : formatAnswer('q5', effectiveAnswer(a, 'q5')),
+    label: 'Materiali',
+    ids: () => ['q6', 'q17'],
+    format: (a) => `Sconto ${formatAnswer('q6', effectiveAnswer(a, 'q6'))} · ricarico ${formatAnswer('q17', effectiveAnswer(a, 'q17'))}`,
   },
-  { label: 'Sconto', ids: one('q6') },
 ]
 
 /** Not asked at sign-up: usual values, editable here. */
@@ -35,7 +33,7 @@ export const OTHER_ROWS: Row[] = [
   { label: 'Validità', ids: one('q11') },
   { label: 'Pagamenti', ids: one('q12') },
   { label: 'Esclusi', ids: one('q13') },
-  { label: 'Serie', hint: 'Base / Media / Top', ids: one('q7') },
+  { label: 'Serie', hint: 'Base / Consigliata / Top', ids: one('q7') },
   { label: 'Linee', ids: one('q8') },
   { label: 'Livello', ids: one('q9') },
   { label: 'Lavori', ids: one('q1') },
