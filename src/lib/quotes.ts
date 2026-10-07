@@ -39,6 +39,18 @@ export async function updateQuote(id: string, patch: Partial<Pick<Quote, 'client
   if (error) throw error
 }
 
+/** Deletes a quote and its files. Messages and versions go with it (ON DELETE CASCADE). */
+export async function deleteQuote(id: string) {
+  const { data: files, error: filesError } = await supabase.from('quote_files').select('storage_path, kind').eq('quote_id', id)
+  if (filesError) throw filesError
+  const audio = (files ?? []).filter((f) => f.kind === 'audio').map((f) => f.storage_path)
+  const docs = (files ?? []).filter((f) => f.kind !== 'audio').map((f) => f.storage_path)
+  if (audio.length) await supabase.storage.from('audio').remove(audio)
+  if (docs.length) await supabase.storage.from('quote-files').remove(docs)
+  const { error } = await supabase.from('quotes').delete().eq('id', id)
+  if (error) throw error
+}
+
 export async function uploadQuoteFile(userId: string, quoteId: string, file: File | Blob, name: string, kind: 'audio' | 'document'): Promise<QuoteFile> {
   const bucket = kind === 'audio' ? 'audio' : 'quote-files'
   const path = `${userId}/${quoteId}/${Date.now()}-${safeFileName(name)}`
