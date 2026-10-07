@@ -1,7 +1,7 @@
 // Quote data access for the app. RLS scopes every query to the logged-in electrician.
 import { supabase } from './supabase'
 import { safeFileName } from './methodDocuments'
-import type { Quote, QuoteFile, VatRate } from '../types/db'
+import type { Quote, QuoteFile } from '../types/db'
 import type { AiQuote, Totals } from '../../supabase/functions/_shared/totals.ts'
 
 /** Format 1 (quotes made before Task 3b), still shown read-only. */
@@ -27,8 +27,9 @@ export function quoteNumber(q: Pick<Quote, 'quote_year' | 'quote_number'>): stri
   return `${q.quote_year}/${String(q.quote_number).padStart(3, '0')}`
 }
 
-export async function createQuote(vatRate: VatRate): Promise<Quote> {
-  const { data, error } = await supabase.from('quotes').insert({ vat_rate: vatRate }).select().single()
+/** New quotes start without IVA (vat_rate 0). */
+export async function createQuote(): Promise<Quote> {
+  const { data, error } = await supabase.from('quotes').insert({ vat_rate: 0 }).select().single()
   if (error) throw error
   return data
 }

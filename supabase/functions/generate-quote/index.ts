@@ -437,7 +437,7 @@ async function buildContext(
   const parts: string[] = [
     '# Il lavoro',
     `Cliente: ${quote.client_name || 'non indicato'} · Indirizzo: ${quote.client_address || 'non indicato'} · Titolo: ${quote.job_title || 'non indicato'}`,
-    `IVA di questo preventivo: ${quote.vat_rate}%`,
+    `IVA di questo preventivo: ${Number(quote.vat_rate) ? `${quote.vat_rate}%` : 'senza IVA (prezzi IVA esclusa)'}`,
     '',
     '## Scheda lavoro attuale (JSON)',
     JSON.stringify(quote.job_sheet ?? {}),
@@ -463,7 +463,7 @@ async function buildContext(
   parts.push('', modeInstruction(job, answeredHoursPerDay(answers)))
   content.push({ type: 'text', text: parts.join('\n') })
 
-  const pricing = pricingInputs(answers, items, disc, upl, Number(quote.vat_rate) || 10)
+  const pricing = pricingInputs(answers, items, disc, upl, Number(quote.vat_rate) || 0)
   pricing.catalogue = Object.fromEntries(excerpt.map((c) => [c.codice.toUpperCase(), c]))
   const system: Anthropic.TextBlockParam[] = [
     { type: 'text', text: config.str('system_prompt_v2', config.str('system_prompt', '')) },

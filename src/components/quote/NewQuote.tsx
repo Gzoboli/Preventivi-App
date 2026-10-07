@@ -7,19 +7,16 @@ import { createQuote, updateQuote } from '../../lib/quotes'
 import { postOutgoing, runAi, type Outgoing } from '../../lib/conversation'
 import { Composer } from '../chat/Composer'
 import { inputClass } from '../onboarding/OptionButton'
-import { defaultVatRate } from '../../../supabase/functions/_shared/method.ts'
-import type { Quote, VatRate } from '../../types/db'
-
-const VAT_OPTIONS: VatRate[] = [10, 22, 4]
+import type { Quote } from '../../types/db'
 
 /**
- * Start of a quote: optional client data, IVA, and the first message (text, voice, files).
+ * Start of a quote: optional client data and the first message (text, voice, files).
+ * Quotes start without IVA: it is added on the quote, if needed.
  * The quote row is created only when the first message is sent (no empty drafts).
  */
 export function NewQuote({ quote, onStarted }: { quote: Quote | null; onStarted: (q: Quote) => void }) {
   const { session } = useAuth()
-  const { profile, answers } = useProfile()
-  const [vat, setVat] = useState<VatRate>((quote?.vat_rate as VatRate | undefined) ?? defaultVatRate(answers))
+  const { profile } = useProfile()
   const [showClient, setShowClient] = useState(false)
   // Kept across a failed attempt, so "Inizia" again doesn't create a second quote.
   const created = useRef<Quote | null>(quote)
@@ -27,9 +24,8 @@ export function NewQuote({ quote, onStarted }: { quote: Quote | null; onStarted:
 
   async function start(out: Outgoing) {
     if (!session) throw new Error('no session')
-    const q = (created.current ??= await createQuote(vat))
+    const q = (created.current ??= await createQuote())
     await updateQuote(q.id, {
-      vat_rate: vat,
       client_name: client.client_name.trim() || null,
       client_address: client.client_address.trim() || null,
       job_title: client.job_title.trim() || null,
@@ -82,24 +78,6 @@ export function NewQuote({ quote, onStarted }: { quote: Quote | null; onStarted:
       </p>
       <div className="mt-4">
         <Composer onSend={start} placeholder="Es. Rifacimento impianto appartamento 80 m², 3 camere, cucina, bagno…" sendLabel="Inizia" />
-      </div>
-
-      <div className="mt-6">
-        <p className="mb-2 text-sm font-medium">IVA</p>
-        <div className="flex gap-2" role="radiogroup" aria-label="IVA">
-          {VAT_OPTIONS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={vat === v}
-              onClick={() => setVat(v)}
-              className={`h-12 min-w-16 rounded-lg border px-3 font-semibold ${vat === v ? 'border-accent bg-accent text-white' : 'border-line'}`}
-            >
-              {v}%
-            </button>
-          ))}
-        </div>
       </div>
     </div>
   )

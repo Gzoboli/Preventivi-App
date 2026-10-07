@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronDown, ClipboardCheck, Lightbulb, Loader2, Message
 import { updateQuote } from '../../lib/quotes'
 import { deleteLines } from '../../lib/conversation'
 import { LineSheet } from './LineSheet'
+import { VatPicker, vatNote } from './VatPicker'
 import { TIERS } from '../../lib/onboarding/questions'
 import { METHOD_LABELS } from '../../../supabase/functions/_shared/chat.ts'
 import { formatEur, formatQty } from '../../../supabase/functions/_shared/format.ts'
@@ -27,7 +28,7 @@ const builtKey = (versionId: string) => `come-costruito-${versionId}`
 export function QuoteResult({ quote, version, previous, onChanged }: { quote: Quote; version: QuoteVersion; previous: QuoteVersion | null; onChanged: () => void }) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals
-  const [vat, setVat] = useState<VatRate>((quote.vat_rate as VatRate) ?? (totals.vat_rate as VatRate))
+  const [vat, setVat] = useState<VatRate>(Number(quote.vat_rate) as VatRate)
   const [openLine, setOpenLine] = useState<string | null>(null)
   const [fixing, setFixing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -42,7 +43,7 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
     }
   })
 
-  useEffect(() => setVat((quote.vat_rate as VatRate) ?? (totals.vat_rate as VatRate)), [quote.vat_rate, totals.vat_rate])
+  useEffect(() => setVat(Number(quote.vat_rate) as VatRate), [quote.vat_rate])
 
   const priced = useMemo(() => new Map(totals.lines.map((l) => [l.line_id, l])), [totals.lines])
   const prevAi = previous?.ai_output as unknown as AiQuote | undefined
@@ -112,9 +113,7 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
                 <p className={`mt-1 text-2xl font-semibold tabular-nums ${tier.uplift_missing ? 'text-amber-700' : ''}`}>
                   {tier.uplift_missing ? `da ${formatEur(totale)}` : formatEur(totale)}
                 </p>
-                <p className="text-sm text-muted">
-                  IVA {vat}% inclusa · imponibile {formatEur(tier.imponibile)}
-                </p>
+                <p className="text-sm text-muted">{vatNote(vat, tier.imponibile)}</p>
                 {t.id !== 'base' && (
                   <p className="mt-2 text-sm text-muted">
                     {tier.uplift_missing ? 'Sovrapprezzo della serie da confermare' : `Sovrapprezzo stimato dai listini su ${formatQty(totals.device_points, 'punti')} con frutto nuovo`}
@@ -135,9 +134,7 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
         <section className="mt-6 rounded-xl border border-accent p-4">
           <h2 className="font-semibold">Totale</h2>
           <p className="mt-1 text-3xl font-semibold tabular-nums">{formatEur(withVat(totals.single.imponibile).totale)}</p>
-          <p className="text-sm text-muted">
-            IVA {vat}% inclusa · imponibile {formatEur(totals.single.imponibile)}
-          </p>
+          <p className="text-sm text-muted">{vatNote(vat, totals.single.imponibile)}</p>
         </section>
       )}
       {totals.missing_count > 0 && (
@@ -147,23 +144,14 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
         </p>
       )}
 
-      <div className="mt-4 flex items-center gap-2" role="radiogroup" aria-label="IVA">
-        <span className="mr-1 text-sm text-muted">IVA:</span>
-        {([10, 22, 4] as VatRate[]).map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={vat === v}
-            onClick={() => {
-              setVat(v)
-              void updateQuote(quote.id, { vat_rate: v })
-            }}
-            className={`h-12 min-w-16 rounded-lg border px-3 font-semibold ${vat === v ? 'border-accent bg-accent text-white' : 'border-line'}`}
-          >
-            {v}%
-          </button>
-        ))}
+      <div className="mt-4">
+        <VatPicker
+          value={vat}
+          onChange={(v) => {
+            setVat(v)
+            void updateQuote(quote.id, { vat_rate: v })
+          }}
+        />
       </div>
 
       {changes.length > 0 && (

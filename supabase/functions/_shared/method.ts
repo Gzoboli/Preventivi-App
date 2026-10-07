@@ -119,12 +119,6 @@ export function pricingInputs(
   }
 }
 
-/** Default IVA for a new quote from "IVA che applichi di solito" (10 when "caso per caso" or unknown). */
-export function defaultVatRate(answers: Answers): 4 | 10 | 22 {
-  const n = numberFrom(answers, 'q10')
-  return n === 22 || n === 4 ? n : 10
-}
-
 const fmt = (n: number | null) => (n == null ? 'senza prezzo' : formatEur(n))
 
 /** Italian description of how this electrician works, for the AI. */

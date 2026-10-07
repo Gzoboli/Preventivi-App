@@ -4,6 +4,7 @@ import { updateQuote, type LegacyAiQuote as AiQuote, type LegacyTotals as Totals
 import { round2 } from '../../../supabase/functions/_shared/totals.ts'
 import { formatEur, formatNumber } from '../../../supabase/functions/_shared/format.ts'
 import { TIERS } from '../../lib/onboarding/questions'
+import { VatPicker, vatNote } from './VatPicker'
 import type { Quote, QuoteVersion, VatRate } from '../../types/db'
 
 const eur = { format: formatEur }
@@ -13,7 +14,7 @@ const num = { format: formatNumber }
 export function ResultView({ quote, version }: { quote: Quote; version: QuoteVersion }) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals
-  const [vat, setVat] = useState<VatRate>((quote.vat_rate as VatRate) ?? totals.vat_rate)
+  const [vat, setVat] = useState<VatRate>(Number(quote.vat_rate) as VatRate)
 
   // IVA can be changed after generation: the taxable amount doesn't depend on it.
   const withVat = (imponibile: number) => {
@@ -39,7 +40,7 @@ export function ResultView({ quote, version }: { quote: Quote; version: QuoteVer
                 {/* Unknown series surcharge: only the Base part is known, so show it as a minimum. */}
                 {tier.uplift_missing ? `da ${eur.format(totale)}` : eur.format(totale)}
               </p>
-              <p className="text-sm text-muted">IVA {vat}% inclusa · imponibile {eur.format(tier.imponibile)}</p>
+              <p className="text-sm text-muted">{vatNote(vat, tier.imponibile)}</p>
               {t.id !== 'base' && !tier.uplift_missing && (
                 <p className="mt-2 text-sm text-muted">Sovrapprezzo della serie stimato dai listini: da confermare</p>
               )}
@@ -61,23 +62,14 @@ export function ResultView({ quote, version }: { quote: Quote; version: QuoteVer
         })}
       </div>
 
-      <div className="mt-4 flex items-center gap-2" role="radiogroup" aria-label="IVA">
-        <span className="mr-1 text-sm text-muted">IVA:</span>
-        {([10, 22, 4] as VatRate[]).map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="radio"
-            aria-checked={vat === v}
-            onClick={() => {
-              setVat(v)
-              void updateQuote(quote.id, { vat_rate: v })
-            }}
-            className={`h-12 min-w-16 rounded-lg border px-3 font-semibold ${vat === v ? 'border-accent bg-accent text-white' : 'border-line'}`}
-          >
-            {v}%
-          </button>
-        ))}
+      <div className="mt-4">
+        <VatPicker
+          value={vat}
+          onChange={(v) => {
+            setVat(v)
+            void updateQuote(quote.id, { vat_rate: v })
+          }}
+        />
       </div>
 
       <h2 className="mt-8 text-lg font-semibold">Voci (opzione Base)</h2>

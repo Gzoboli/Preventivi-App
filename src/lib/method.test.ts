@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { defaultVatRate, answeredHoursPerDay, methodText, pricingInputs, seriesForTier, upliftFor } from '../../supabase/functions/_shared/method.ts'
+import { answeredHoursPerDay, methodText, pricingInputs, seriesForTier, upliftFor } from '../../supabase/functions/_shared/method.ts'
 import { normalizeReply, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
 import { EMPTY_JOB_SHEET } from '../../supabase/functions/_shared/pricing.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
@@ -45,12 +45,6 @@ describe('pricingInputs', () => {
   it('uses the working day only when he answered it', () => {
     expect(answeredHoursPerDay({})).toBeNull()
     expect(answeredHoursPerDay({ q18: { value: '9', source: 'user' } })).toBe(9)
-  })
-
-  it('picks the default IVA for a new quote', () => {
-    expect(defaultVatRate({})).toBe(10)
-    expect(defaultVatRate({ q10: { value: '22', source: 'user' } })).toBe(22)
-    expect(defaultVatRate({ q10: { value: 'caso_per_caso', source: 'user' } })).toBe(10)
   })
 })
 

@@ -82,7 +82,7 @@ The app keeps learning how each electrician works without long questionnaires:
 Principle (Gio): quality over speed. The AI works **with** the electrician like an expert colleague: collects facts, proposes the pricing method, questions numbers that don't add up, and only then prepares the quote, explaining how it built it. The AI never computes money.
 
 ### Start (`/preventivi/nuovo`)
-"Cliente e indirizzo (facoltativo)" + title (collapsed), **"Descrivi il lavoro"** composer (text + 🎙 record max 5 min + 📎 any files, several), IVA chips 10/22/4 % (preset from `q10`). "Inizia" creates the `quotes` row (no empty drafts), posts the first message and asks the AI. Onboarding not finished → "Stiamo usando i valori più comuni… Completa il tuo metodo".
+"Cliente e indirizzo (facoltativo)" + title (collapsed), **"Descrivi il lavoro"** composer (text + 🎙 record max 5 min + 📎 any files, several). No IVA choice here: every quote starts **senza IVA** (vat_rate 0). "Inizia" creates the `quotes` row (no empty drafts), posts the first message and asks the AI. Onboarding not finished → "Stiamo usando i valori più comuni… Completa il tuo metodo".
 
 ### Conversation (`/preventivi/:id`, before the quote exists)
 - WhatsApp-like chat (`quote_messages`): electrician on the right, assistant on the left. Every message has a composer: text + 🎙 + 📎. Voice notes are uploaded, transcribed (OpenAI, Italian) and shown as an audio bubble with the transcript underneath (**Correggi la trascrizione**).
@@ -126,7 +126,7 @@ List with chips from the phase: Ti servono risposte · Da generare · Pronto · 
 
 ## 4. After generation: "Come l'ho costruito" and revision (Task 3b)
 
-- Price: one **Totale** card, or Base / **Consigliata** / Top cards (series and what the client gets); IVA chips 10/22/4 % (taxable amount unchanged).
+- Price: one **Totale** card, or Base / **Consigliata** / Top cards (series and what the client gets); IVA chips Senza IVA (default) / 10 / 22 / 4 % (taxable amount unchanged).
 - **Come l'ho costruito** (open the first time a version is seen): build notes as bullets, then per section "Metodo: … — perché: …".
 - **Da controllare**: the AI's most uncertain points; tapping one jumps to its line.
 - Lines by section with the method chip and a **source tag**: 🗣 Detto da te · 📋 Tuo listino · 📦 Catalogo (−X% sconto, +Y% ricarico) · 💡 Mia stima · ✅ Inclusa. Tap → sheet with the why, the numbers behind the price ("16 h × 40,00 € (tariffa titolare)", "Listino … − 46,6% sconto + 20% ricarico") and edit fields (description, qty, unit price, kind) + Elimina. Manual edits update the version in place, go to `edits_log` and are posted in the chat as notes.
