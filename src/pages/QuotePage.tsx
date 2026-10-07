@@ -34,7 +34,11 @@ export function QuotePage() {
     if (justStarted) markSent()
   }, [quoteId, justStarted, markSent])
 
-  const started = (q: Quote) => navigate(`/preventivi/${q.id}`, { replace: true, state: { started: true } })
+  const started = (q: Quote) =>
+    navigate(`/preventivi/${q.id}`, {
+      replace: true,
+      state: { started: true },
+    })
 
   if (!quoteId) {
     return (
@@ -148,16 +152,30 @@ function Conversation({ c }: { c: ReturnType<typeof useConversation> }) {
         session.user.id,
         quote.id,
         {
-          answers: answers.map((a) => ({ question_id: a.question_id, question: a.question, selected: a.selected, custom: a.out.text.trim() || null })),
+          answers: answers.map((a) => ({
+            question_id: a.question_id,
+            question: a.question,
+            selected: a.selected,
+            custom: a.out.text.trim() || null,
+          })),
           method_choices: methods,
         },
-        answers.filter((a) => a.out.audio || a.out.files.length).map((a) => ({ question_id: a.question_id, question: a.question, out: a.out })),
+        answers
+          .filter((a) => a.out.audio || a.out.files.length)
+          .map((a) => ({
+            question_id: a.question_id,
+            question: a.question,
+            out: a.out,
+          })),
       )
       await ask(() => runAi(quote.id, generated ? 'revise' : 'conversation'))
     },
     generate: (force) => ask(() => runAi(quote.id, 'generate', { force })),
     // No mode (no reply at all): the usual one for this phase.
-    retry: (p) => ask(() => runAi(quote.id, (p.mode || (generated ? 'revise' : 'conversation')) as Mode, { proposalMessageId: p.proposal_message_id ?? undefined })),
+    retry: (p) =>
+      ask(() =>
+        runAi(quote.id, (p.mode || (generated ? 'revise' : 'conversation')) as Mode, { proposalMessageId: p.proposal_message_id ?? undefined }),
+      ),
     applyProposal: (m) => ask(() => runAi(quote.id, 'apply', { proposalMessageId: m.id })),
     cancelProposal: async (m) => {
       await cancelProposal(quote.id, m)
@@ -166,6 +184,10 @@ function Conversation({ c }: { c: ReturnType<typeof useConversation> }) {
     modifyProposal: () => composer.current?.focus('Modifica la proposta: '),
     changed: () => void c.reload(),
   }
+
+  // While the AI's questions wait for an answer, they have their own text and voice inputs.
+  const lastReply = [...c.messages].reverse().find((m) => m.role !== 'electrician' || m.kind !== 'note')
+  const questionsOpen = !c.busy && lastReply?.role === 'assistant' && lastReply.kind === 'questions'
 
   const chat = (
     <div className="space-y-4">
@@ -218,12 +240,14 @@ function Conversation({ c }: { c: ReturnType<typeof useConversation> }) {
           )}
         </div>
       )}
-      <Composer
-        ref={composer}
-        onSend={send}
-        disabled={c.busy}
-        placeholder={generated ? 'Cosa vuoi cambiare? Es. «il cavo è 400 metri»' : 'Scrivi un messaggio…'}
-      />
+      {!questionsOpen && (
+        <Composer
+          ref={composer}
+          onSend={send}
+          disabled={c.busy}
+          placeholder={generated ? 'Cosa vuoi cambiare? Es. «il cavo è 400 metri»' : 'Scrivi un messaggio…'}
+        />
+      )}
       <div ref={end} />
     </div>
   )
@@ -234,23 +258,17 @@ function Conversation({ c }: { c: ReturnType<typeof useConversation> }) {
         <QuoteResult quote={quote} version={c.version!} previous={c.previous} onChanged={() => void c.reload()} />
         <aside ref={aside} className="mt-10 space-y-4 lg:sticky lg:top-4 lg:mt-0 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto" aria-label="Chat">
           <h2 className="text-lg font-semibold">Chat</h2>
-          <JobSheetPanel quoteId={quote.id} sheet={sheet} collapsible onChanged={() => void c.reload()} />
+          <JobSheetPanel sheet={sheet} />
           {chat}
         </aside>
       </div>
     )
   }
+  // Collecting facts: one centred column (summary of what is known, then the conversation).
   return (
-    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
-      <div className="mx-auto w-full max-w-2xl space-y-4">
-        <div className="lg:hidden">
-          <JobSheetPanel quoteId={quote.id} sheet={sheet} collapsible onChanged={() => void c.reload()} />
-        </div>
-        {chat}
-      </div>
-      <aside className="hidden lg:sticky lg:top-4 lg:block">
-        <JobSheetPanel quoteId={quote.id} sheet={sheet} collapsible={false} onChanged={() => void c.reload()} />
-      </aside>
+    <div className="mx-auto w-full max-w-2xl space-y-4">
+      <JobSheetPanel sheet={sheet} />
+      {chat}
     </div>
   )
 }

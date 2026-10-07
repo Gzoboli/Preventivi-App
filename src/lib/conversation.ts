@@ -4,7 +4,7 @@ import { uploadQuoteFile } from './quotes'
 import type { Json, QuoteMessage, QuoteVersion } from '../types/db'
 import type { Mode } from '../../supabase/functions/_shared/aiSchema.ts'
 import type { AnswersPayload, ChatMessage, ProposalPayload, QuestionRef } from '../../supabase/functions/_shared/chat.ts'
-import { aggregate, type AiLine, type AiQuote, type JobSheet, type PricedLine, type Totals } from '../../supabase/functions/_shared/pricing.ts'
+import { aggregate, type AiLine, type AiQuote, type PricedLine, type Totals } from '../../supabase/functions/_shared/pricing.ts'
 
 export type { ChatMessage }
 
@@ -103,12 +103,6 @@ export async function cancelProposal(quoteId: string, message: ChatMessage) {
   if (error) throw error
   await addNote(quoteId, 'Ho annullato la proposta di modifica.')
   await supabase.from('quotes').update({ phase: 'generato' }).eq('id', quoteId)
-}
-
-export async function updateJobSheet(quoteId: string, sheet: JobSheet, note: string) {
-  const { error } = await supabase.from('quotes').update({ job_sheet: sheet as unknown as Json }).eq('id', quoteId)
-  if (error) throw error
-  await addNote(quoteId, note)
 }
 
 export async function signedUrl(bucket: 'audio' | 'quote-files', path: string): Promise<string | null> {

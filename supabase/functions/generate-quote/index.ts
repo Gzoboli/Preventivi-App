@@ -16,9 +16,9 @@ import { encodeBase64 } from 'jsr:@std/encoding@1/base64'
 import { parseAnswers } from '../_shared/answers.ts'
 import { SERIES } from '../_shared/questions.ts'
 import { answeredHoursPerDay, methodText, pricingInputs, seriesForTier, type DiscountRow, type PriceRow, type UpliftRow } from '../_shared/method.ts'
-import { replySchema, type Mode } from '../_shared/aiSchema.ts'
+import { normalizeReply, replySchema, type Mode, type Reply } from '../_shared/aiSchema.ts'
 import { renderTranscript, type ChatMessage } from '../_shared/chat.ts'
-import { allLines, priceQuote, type AiProposal, type AiQuestions, type AiQuote, type AiReady, type CatalogueItem } from '../_shared/pricing.ts'
+import { allLines, priceQuote, type CatalogueItem } from '../_shared/pricing.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -202,8 +202,6 @@ async function step(db: Db, quote: Row, job: Job, t0: number): Promise<'continue
 }
 
 // ---------------------------------------------------------------- saving replies
-
-type Reply = AiQuestions | AiReady | AiQuote | AiProposal
 
 async function save(db: Db, quote: Row, job: Job, ctx: Context, reply: Reply) {
   const base = { quote_id: job.quoteId, user_id: quote.user_id, role: 'assistant' }
@@ -526,15 +524,21 @@ function modeInstruction(job: Job, hoursPerDay: number | null): string {
 }
 
 const TECHNICAL_RULES = `Regole tecniche dell’app (valgono sempre e prevalgono sul formato descritto sopra):
-- Rispondi solo con l’oggetto JSON richiesto, nel campo "reply". Tutto in italiano.
+- Rispondi solo con l’oggetto JSON richiesto: { job_sheet, reply }. Tutto in italiano.
+- Valori sconosciuti: testo "" (stringa vuota), numeri 0, scelte "non_so"/"nessuno", elenchi vuoti. Non inventare valori per riempire i campi.
 - job_sheet.metodo è un elenco di {sezione, metodo}. squadra.ore_giorno: le ore di una giornata.
-- Domande: al massimo 3, ognuna con 2–5 opzioni corte. Non mettere opzioni come "Altro" o "Scrivo io": sotto ogni domanda l’elettricista ha già un campo per scrivere, registrare un vocale o allegare un file. Un dubbio (challenges) va collegato con question_id alla domanda a cui si riferisce.
-- Righe del preventivo: line_id brevi e univoci ("L1", "L2", …). kind "ore": qty = ore totali di quella persona, worker "titolare" o "aiutante", unit_price null (salvo che lui abbia detto una tariffa diversa: allora unit_price e source "detto_da_te"). kind "punto"/"forfait": price_item_code dal suo listino, unit_price null.
-- Materiali: catalogue_code solo con un codice dell’estratto del catalogo (o detto da lui), unit_price null. Per materiali non presenti nel catalogo (cavi, tubi, scatole, apparecchi…) metti in unit_price la tua stima del prezzo di listino prima dello sconto, con source "mia_stima": l’app applica il suo sconto e il suo ricarico. Se un prezzo te l’ha detto lui, è il prezzo finale: source "detto_da_te". price_missing = true solo se non hai nessun prezzo.
+- Domande: al massimo 3, le più importanti prima; l’app le mostra una alla volta. Per ognuna:
+  · text: la domanda, chiara e completa anche letta da sola (es. "Quante persone lavorano a questo ricablaggio e per quanti giorni?", non "Squadra?").
+  · why: una frase che spiega perché lo chiedi e cosa cambia nel prezzo (es. "Il ricablaggio lo calcolo a ore: persone e giorni decidono la manodopera.").
+  · options: 2–5 risposte corte e concrete. Non mettere "Altro" o "Scrivo io": l’elettricista può sempre scrivere o rispondere a voce.
+  · Un dubbio (challenges) va collegato con question_id alla domanda a cui si riferisce ("" se generale).
+- method_proposal: una riga per sezione con il metodo e il perché; elenco vuoto se l’hai già proposto o non serve.
+- Righe del preventivo: line_id brevi e univoci ("L1", "L2", …). kind "ore": qty = ore totali di quella persona, worker "titolare" o "aiutante", unit_price 0 (salvo che lui abbia detto una tariffa diversa: allora unit_price e source "detto_da_te"). kind "punto"/"forfait": price_item_code dal suo listino, unit_price 0, worker "nessuno".
+- Materiali: catalogue_code solo con un codice dell’estratto del catalogo (o detto da lui), unit_price 0. Per materiali non presenti nel catalogo (cavi, tubi, scatole, apparecchi…) metti in unit_price la tua stima del prezzo di listino prima dello sconto, con source "mia_stima": l’app applica il suo sconto e il suo ricarico. Se un prezzo te l’ha detto lui, è il prezzo finale: source "detto_da_te". price_missing = true solo se non hai nessun prezzo.
 - is_certificate = true sulla riga della dichiarazione di conformità; l’app la mette a 0 € ("inclusa") quando job_sheet.dico = "inclusa".
-- replaces_device = true solo sulle righe dove il frutto (interruttore, presa…) viene cambiato: solo lì si applica il sovrapprezzo della serie. tiers = null se non si cambia nessun frutto; altrimenti chiavi base, consigliata, top.
-- to_check: ogni voce con il line_id della riga a cui si riferisce (null se generale).
-- why: una frase breve con la fonte dei numeri (es. "2 persone × 1,5 giorni × 8 h, detto da te").
+- replaces_device = true solo sulle righe dove il frutto (interruttore, presa…) viene cambiato: solo lì si applica il sovrapprezzo della serie. tiers.offered = false se non si cambia nessun frutto (riempi comunque base, consigliata e top con testi brevi).
+- to_check: ogni voce con il line_id della riga a cui si riferisce ("" se generale).
+- why delle righe: una frase breve con la fonte dei numeri (es. "2 persone × 1,5 giorni × 8 h, detto da te").
 - I totali, l’IVA, gli sconti e i ricarichi li calcola l’app: non scriverli.`
 
 // ---------------------------------------------------------------- AI call (Anthropic)
@@ -571,8 +575,7 @@ async function askAi(config: Config, model: string, ctx: Context, mode: Mode, t0
       throw new UserError('Il lavoro è troppo grande da preparare in una volta. Prova a dividerlo in più preventivi.')
     }
     const text = msg.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')
-    const reply = JSON.parse(text).reply as Reply
-    if (!reply?.type || !reply.job_sheet) throw new Error('bad reply')
+    const reply = normalizeReply(JSON.parse(text))
     if (reply.type === 'questions' && !reply.questions.length && !reply.method_proposal) throw new Error('no questions')
     if (reply.type === 'quote' && !reply.sections.length) throw new Error('empty quote')
     return { reply, usage }

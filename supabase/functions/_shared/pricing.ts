@@ -22,7 +22,8 @@ export type JobSheet = {
   mancanti: string[]
 }
 
-export type AiQuestion = { id: string; text: string; options: string[]; multi: boolean }
+/** `why`: the context, in plain words, of why the AI asks (shown above the options). */
+export type AiQuestion = { id: string; text: string; why: string; options: string[]; multi: boolean }
 export type MethodProposal = { sections: { name: string; method: Method; why: string }[] }
 
 export type AiQuestions = {

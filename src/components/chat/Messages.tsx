@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { AlertTriangle, Bot, Check, FileText, Loader2, Lightbulb, Minus, Pencil, Plus, RotateCcw, Sparkles } from 'lucide-react'
 import { AttachBar } from './Attachments'
 import { Chip, inputClass } from '../onboarding/OptionButton'
-import { EMPTY_OUTGOING, isEmpty, signedUrl, updateMessageText, type ChatMessage, type Outgoing } from '../../lib/conversation'
+import { EMPTY_OUTGOING, signedUrl, updateMessageText, type ChatMessage, type Outgoing } from '../../lib/conversation'
 import { METHOD_LABELS, type AnswersPayload, type ErrorPayload, type ProposalPayload, type QuoteReadyPayload, type ReadyPayload } from '../../../supabase/functions/_shared/chat.ts'
 import type { AiQuestions, Method } from '../../../supabase/functions/_shared/pricing.ts'
 import { formatEur } from '../../../supabase/functions/_shared/format.ts'
@@ -279,19 +279,20 @@ type Draft = { selected: string[]; out: Outgoing }
 /** "Ho capito così" + method proposal + question cards, each with chips, text, 🎙 and 📎. */
 function QuestionsCard({ m, active, actions }: { m: ChatMessage; active: boolean; actions: ChatActions }) {
   const p = m.payload as unknown as AiQuestions
+  const sections = p.method_proposal?.sections ?? []
   const [drafts, setDrafts] = useState<Record<string, Draft>>(() =>
     Object.fromEntries(p.questions.map((q) => [q.id, { selected: [], out: EMPTY_OUTGOING }])),
   )
-  const [methods, setMethods] = useState<Record<string, Method | 'conferma'>>(() =>
-    Object.fromEntries((p.method_proposal?.sections ?? []).map((s) => [s.name, 'conferma'])),
-  )
+  const [methods, setMethods] = useState<Record<string, Method | 'conferma'>>(() => Object.fromEntries(sections.map((s) => [s.name, 'conferma'])))
+  // One step at a time: the method proposal first (if any), then each question.
+  const steps = (sections.length ? ['metodo'] : []).concat(p.questions.map((q) => q.id))
+  const [step, setStep] = useState(0)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const general = p.challenges.filter((c) => !c.question_id || !p.questions.some((q) => q.id === c.question_id))
 
   const setDraft = (id: string, d: Partial<Draft>) => setDrafts((all) => ({ ...all, [id]: { ...all[id], ...d } }))
-  const answered = (d: Draft) => d.selected.length > 0 || !isEmpty(d.out)
-  const anyAnswer = Object.values(drafts).some(answered) || !!p.method_proposal
+  const last = step === steps.length - 1
 
   async function submit() {
     setBusy(true)
@@ -300,7 +301,7 @@ function QuestionsCard({ m, active, actions }: { m: ChatMessage; active: boolean
       await actions.sendAnswers(
         m,
         p.questions.map((q) => ({ question_id: q.id, question: q.text, selected: drafts[q.id].selected, out: drafts[q.id].out })),
-        (p.method_proposal?.sections ?? []).map((s) => {
+        sections.map((s) => {
           const c = methods[s.name]
           return { section: s.name, method: c === 'conferma' ? s.method : c, confirmed: c === 'conferma' }
         }),
@@ -311,22 +312,63 @@ function QuestionsCard({ m, active, actions }: { m: ChatMessage; active: boolean
     }
   }
 
+  if (!active) {
+    // Already answered (or superseded): a compact record.
+    return (
+      <AssistantBox>
+        <p className="font-semibold">Ho capito così</p>
+        <p className="mt-1 whitespace-pre-line">{p.understanding}</p>
+        <ul className="mt-3 space-y-1 text-sm text-muted">
+          {sections.map((s) => (
+            <li key={s.name}>
+              Metodo proposto per {s.name}: {METHOD_LABELS[s.method]}
+            </li>
+          ))}
+          {p.questions.map((q, i) => (
+            <li key={q.id}>
+              {i + 1}. {q.text}
+            </li>
+          ))}
+        </ul>
+      </AssistantBox>
+    )
+  }
+
+  const current = steps[step]
+  const q = p.questions.find((x) => x.id === current)
+  const d = q ? drafts[q.id] : null
+
   return (
-    <AssistantBox>
+    <section className="rounded-2xl border border-accent/30 bg-white p-4 sm:p-6" aria-label="Domande per il preventivo">
       <p className="font-semibold">Ho capito così</p>
       <p className="mt-1 whitespace-pre-line">{p.understanding}</p>
+      {general.map((c) => (
+        <Challenge key={c.text} text={c.text} />
+      ))}
 
-      {p.method_proposal && p.method_proposal.sections.length > 0 && (
-        <section className="mt-4 rounded-xl bg-gray-50 p-3">
-          <h3 className="font-semibold">Come propongo di fare il prezzo</h3>
-          <ul className="mt-2 space-y-3">
-            {p.method_proposal.sections.map((s) => (
-              <li key={s.name}>
-                <p>
-                  <span className="font-semibold">{s.name}</span> → {METHOD_LABELS[s.method]}
-                </p>
-                <p className="text-sm text-muted">Perché: {s.why}</p>
-                {active && (
+      <div className="mt-5 border-t border-line pt-5">
+        <div className="flex items-center justify-between text-sm text-muted">
+          <span>
+            {current === 'metodo' ? 'Prima di tutto' : `Domanda ${p.questions.findIndex((x) => x.id === current) + 1} di ${p.questions.length}`}
+          </span>
+          <span className="flex gap-1" aria-hidden>
+            {steps.map((s, i) => (
+              <span key={s} className={`h-1.5 w-6 rounded-full ${i <= step ? 'bg-accent' : 'bg-gray-200'}`} />
+            ))}
+          </span>
+        </div>
+
+        {current === 'metodo' ? (
+          <div className="mt-3">
+            <h3 className="text-xl font-semibold">Come propongo di fare il prezzo</h3>
+            <p className="mt-1 text-muted">Puoi confermare o scegliere un altro metodo per ogni parte del lavoro.</p>
+            <ul className="mt-4 space-y-4">
+              {sections.map((s) => (
+                <li key={s.name}>
+                  <p>
+                    <span className="font-semibold">{s.name}</span> → {METHOD_LABELS[s.method]}
+                  </p>
+                  <p className="text-sm text-muted">Perché: {s.why}</p>
                   <div className="mt-2 flex flex-wrap gap-2" role="radiogroup" aria-label={`Metodo per ${s.name}`}>
                     {(['conferma', 'punto', 'ore_materiali', 'forfait'] as const).map((c) => (
                       <Chip key={c} selected={methods[s.name] === c} onClick={() => setMethods((x) => ({ ...x, [s.name]: c }))}>
@@ -334,91 +376,78 @@ function QuestionsCard({ m, active, actions }: { m: ChatMessage; active: boolean
                       </Chip>
                     ))}
                   </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {general.map((c) => (
-        <Challenge key={c.text} text={c.text} />
-      ))}
-
-      <ol className="mt-4 space-y-4">
-        {p.questions.map((q, i) => {
-          const d = drafts[q.id]
-          return (
-            <li key={q.id} className="rounded-xl border border-line p-3">
-              <p className="font-semibold">
-                {i + 1}. {q.text}
-              </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          q &&
+          d && (
+            <div className="mt-3">
+              <h3 className="text-xl font-semibold">{q.text}</h3>
+              {q.why && <p className="mt-1 text-muted">Perché te lo chiedo: {q.why}</p>}
               {p.challenges
                 .filter((c) => c.question_id === q.id)
                 .map((c) => (
                   <Challenge key={c.text} text={c.text} />
                 ))}
-              {active ? (
-                <>
-                  {q.multi && <p className="text-sm text-muted">Puoi sceglierne più di una.</p>}
-                  <div className="mt-2 flex flex-wrap gap-2" role={q.multi ? 'group' : 'radiogroup'} aria-label={q.text}>
-                    {q.options
-                      .filter((o) => !/^\s*altro\b|scrivo io/i.test(o))
-                      .map((o) => (
-                        <Chip
-                          key={o}
-                          selected={d.selected.includes(o)}
-                          onClick={() => {
-                            const has = d.selected.includes(o)
-                            setDraft(q.id, {
-                              selected: q.multi ? (has ? d.selected.filter((x) => x !== o) : [...d.selected, o]) : has ? [] : [o],
-                            })
-                          }}
-                        >
-                          {o}
-                        </Chip>
-                      ))}
-                  </div>
-                  <textarea
-                    rows={2}
-                    value={d.out.text}
-                    onChange={(e) => setDraft(q.id, { out: { ...d.out, text: e.target.value } })}
-                    placeholder="Altro o dettagli: scrivi qui"
-                    aria-label={`${q.text}: altro o dettagli`}
-                    className={`${inputClass} mt-3 h-auto min-h-12 py-3`}
-                  />
-                  <div className="mt-2">
-                    <AttachBar value={d.out} onChange={(out) => setDraft(q.id, { out })} onError={setError} label={q.text} disabled={busy} />
-                  </div>
-                </>
-              ) : (
-                <p className="text-sm text-muted">{q.options.filter((o) => !/^\s*altro\b|scrivo io/i.test(o)).join(' · ')}</p>
-              )}
-            </li>
+              {q.multi && <p className="mt-3 text-sm text-muted">Puoi sceglierne più di una.</p>}
+              <div className="mt-3 flex flex-wrap gap-2" role={q.multi ? 'group' : 'radiogroup'} aria-label={q.text}>
+                {q.options
+                  .filter((o) => !/^\s*altro\b|scrivo io/i.test(o))
+                  .map((o) => (
+                    <Chip
+                      key={o}
+                      selected={d.selected.includes(o)}
+                      onClick={() => {
+                        const has = d.selected.includes(o)
+                        setDraft(q.id, { selected: q.multi ? (has ? d.selected.filter((x) => x !== o) : [...d.selected, o]) : has ? [] : [o] })
+                      }}
+                    >
+                      {o}
+                    </Chip>
+                  ))}
+              </div>
+              <p className="mt-4 text-sm font-medium">Oppure rispondi con parole tue, scrivendo o a voce</p>
+              <textarea
+                rows={2}
+                value={d.out.text}
+                onChange={(e) => setDraft(q.id, { out: { ...d.out, text: e.target.value } })}
+                placeholder="Scrivi qui la risposta o aggiungi dettagli"
+                aria-label={`${q.text}: risposta scritta`}
+                className={`${inputClass} mt-2 h-auto min-h-12 py-3`}
+              />
+              <div className="mt-2">
+                <AttachBar value={d.out} onChange={(out) => setDraft(q.id, { out })} onError={setError} label={q.text} disabled={busy} />
+              </div>
+            </div>
           )
-        })}
-      </ol>
+        )}
 
-      {active && (
-        <>
-          {error && (
-            <p className="mt-3 text-red-700" role="alert">
-              {error}
-            </p>
+        {error && (
+          <p className="mt-3 text-red-700" role="alert">
+            {error}
+          </p>
+        )}
+        <div className="mt-5 flex gap-2">
+          {step > 0 && (
+            <button type="button" disabled={busy} onClick={() => setStep(step - 1)} className="h-14 rounded-xl border border-line px-5 font-semibold">
+              Indietro
+            </button>
           )}
           <button
             type="button"
-            disabled={busy || !anyAnswer}
-            onClick={() => void submit()}
-            className="mt-4 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-accent text-lg font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
+            disabled={busy}
+            onClick={() => (last ? void submit() : setStep(step + 1))}
+            className="flex h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-accent text-lg font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
           >
             {busy && <Loader2 className="size-5 animate-spin" aria-hidden />}
-            Invia risposte
+            {last ? 'Invia risposte' : 'Avanti'}
           </button>
-          <p className="mt-2 text-center text-sm text-muted">Puoi lasciare vuote le domande a cui non sai rispondere.</p>
-        </>
-      )}
-    </AssistantBox>
+        </div>
+        <p className="mt-2 text-center text-sm text-muted">Se non sai rispondere, vai avanti: lo metto tra le cose da controllare.</p>
+      </div>
+    </section>
   )
 }
 

@@ -7,7 +7,7 @@ import {
   seriesForTier,
   upliftFor,
 } from '../../supabase/functions/_shared/method.ts'
-import { replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
+import { normalizeReply, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
 
 const items = [{ code: 'PRESA10', name: 'Presa 10A / bipresa', category: 'Prese', unit: 'punto', price_eur: 36, includes_material: true }]
@@ -103,5 +103,39 @@ describe('reply rules', () => {
       Object.values(o).forEach(walk)
     }
     for (const mode of ['conversation', 'generate', 'revise', 'apply'] as const) walk(replySchema(mode))
+  })
+
+  it('stays within the API limit of 16 union-typed parameters', () => {
+    const count = (s: unknown): number => {
+      if (!s || typeof s !== 'object') return 0
+      const o = s as Record<string, unknown>
+      const own = o.anyOf || Array.isArray(o.type) ? 1 : 0
+      return own + Object.values(o).reduce<number>((n, v) => n + count(v), 0)
+    }
+    for (const mode of ['conversation', 'generate', 'revise', 'apply'] as const) expect(count(replySchema(mode))).toBeLessThanOrEqual(16)
+  })
+
+  it('turns "unknown" values back into null', () => {
+    const sheet = {
+      tipo_lavoro: 'Ricablaggio', metodo: [], squadra: { persone: 2, aiutante: 'non_so', giorni: 0, ore_giorno: 0 }, ambienti: [],
+      punti: 0, frutti: 'non_so', quadro: '', dico: 'inclusa', altro: [], mancanti: ['giorni'],
+    }
+    const q = normalizeReply({
+      job_sheet: sheet,
+      reply: { type: 'questions', understanding: 'x', method_proposal: [], questions: [{ id: 'a', text: 'Quanti giorni?', why: 'w', options: ['1', '2'], multi: false }], challenges: [{ text: 'c', question_id: '' }] },
+    })
+    expect(q.job_sheet.squadra).toEqual({ persone: 2, aiutante: null, giorni: null, ore_giorno: null })
+    expect(q.job_sheet).toMatchObject({ punti: null, frutti: null, quadro: null, dico: 'inclusa' })
+    expect(q.type === 'questions' && q.method_proposal).toBeNull()
+    expect(q.type === 'questions' && q.challenges[0].question_id).toBeNull()
+
+    const line = { line_id: 'L1', kind: 'ore', worker: 'nessuno', price_item_code: '', catalogue_code: '', description: 'd', qty: 3, unit: 'h', unit_price: 0, source: 'tuo_listino', why: '', quantity_estimated: false, price_missing: false, replaces_device: false, is_certificate: false }
+    const t = { series: '', what_you_get: [] }
+    const quote = normalizeReply({
+      job_sheet: sheet,
+      reply: { type: 'quote', title: 't', summary: 's', sections: [{ name: 'S', icon: 'other', method: 'punto', method_why: '', lines: [line] }], tiers: { offered: false, base: t, consigliata: t, top: t }, build_notes: [], assumptions: [], exclusions: [], to_check: [{ text: 'x', line_id: 'L1' }], estimated_days: 0, team: { persone: 0, giorni: 0, ore_giorno: 0 } },
+    })
+    expect(quote.type === 'quote' && quote.sections[0].lines[0]).toMatchObject({ worker: null, price_item_code: null, catalogue_code: null, unit_price: null })
+    expect(quote.type === 'quote' && [quote.tiers, quote.estimated_days, quote.team]).toEqual([null, null, null])
   })
 })
