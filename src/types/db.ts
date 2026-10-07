@@ -301,6 +301,48 @@ export type Database = {
           },
         ]
       }
+      quote_messages: {
+        Row: {
+          audio_file_id: string | null
+          created_at: string
+          file_ids: string[]
+          id: string
+          kind: string
+          payload: Json
+          quote_id: string
+          quote_version_id: string | null
+          role: string
+          text: string | null
+          user_id: string
+        }
+        Insert: {
+          audio_file_id?: string | null
+          created_at?: string
+          file_ids?: string[]
+          id?: string
+          kind?: string
+          payload?: Json
+          quote_id: string
+          quote_version_id?: string | null
+          role: string
+          text?: string | null
+          user_id?: string
+        }
+        Update: {
+          audio_file_id?: string | null
+          created_at?: string
+          file_ids?: string[]
+          id?: string
+          kind?: string
+          payload?: Json
+          quote_id?: string
+          quote_version_id?: string | null
+          role?: string
+          text?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       quote_versions: {
         Row: {
           ai_output: Json | null
@@ -371,12 +413,15 @@ export type Database = {
       }
       quotes: {
         Row: {
+          ai_run_started_at: string | null
           client_address: string | null
           client_name: string | null
           created_at: string
           estimated_days: number | null
           id: string
+          job_sheet: Json
           job_title: string | null
+          phase: string
           quote_number: number
           quote_year: number
           selected_tier: string | null
@@ -387,12 +432,15 @@ export type Database = {
           vat_rate: number
         }
         Insert: {
+          ai_run_started_at?: string | null
           client_address?: string | null
           client_name?: string | null
           created_at?: string
           estimated_days?: number | null
           id?: string
+          job_sheet?: Json
           job_title?: string | null
+          phase?: string
           quote_number?: number
           quote_year?: number
           selected_tier?: string | null
@@ -403,12 +451,15 @@ export type Database = {
           vat_rate?: number
         }
         Update: {
+          ai_run_started_at?: string | null
           client_address?: string | null
           client_name?: string | null
           created_at?: string
           estimated_days?: number | null
           id?: string
+          job_sheet?: Json
           job_title?: string | null
+          phase?: string
           quote_number?: number
           quote_year?: number
           selected_tier?: string | null
@@ -479,6 +530,7 @@ export type Discount = Tables<'discounts'>
 export type Quote = Tables<'quotes'>
 export type QuoteVersion = Tables<'quote_versions'>
 export type QuoteFile = Tables<'quote_files'>
+export type QuoteMessage = Tables<'quote_messages'>
 export type CatalogueItem = Tables<'catalogue'>
 export type SeriesUplift = Tables<'series_uplift'>
 
@@ -487,3 +539,4 @@ export type QuoteStatus = 'bozza' | 'inviato'
 export type QuoteTier = 'base' | 'media' | 'top'
 export type VersionStatus = 'processing' | 'needs_answers' | 'ready' | 'error'
 export type VatRate = 4 | 10 | 22
+export type QuotePhase = 'raccolta' | 'pronto_da_generare' | 'generato' | 'in_revisione'

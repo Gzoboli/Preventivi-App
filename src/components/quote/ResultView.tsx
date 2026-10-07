@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
-import { updateQuote, type AiQuote, type Totals } from '../../lib/quotes'
+import { updateQuote, type LegacyAiQuote as AiQuote, type LegacyTotals as Totals } from '../../lib/quotes'
 import { round2 } from '../../../supabase/functions/_shared/totals.ts'
+import { formatEur, formatNumber } from '../../../supabase/functions/_shared/format.ts'
 import { TIERS } from '../../lib/onboarding/questions'
 import type { Quote, QuoteVersion, VatRate } from '../../types/db'
 
-const eur = new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' })
-const num = new Intl.NumberFormat('it-IT', { maximumFractionDigits: 2 })
+const eur = { format: formatEur }
+const num = { format: formatNumber }
 
-/** Simple read-only result (Task 4 builds the full review screen). */
+/** Read-only result of a quote made before Task 3b (format 1). */
 export function ResultView({ quote, version }: { quote: Quote; version: QuoteVersion }) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals

@@ -1,10 +1,11 @@
 // Quote data access for the app. RLS scopes every query to the logged-in electrician.
 import { supabase } from './supabase'
 import { safeFileName } from './methodDocuments'
-import type { Json, Quote, QuoteFile, QuoteVersion, VatRate } from '../types/db'
-import type { AiClarify, AiQuote, Totals } from '../../supabase/functions/_shared/totals.ts'
+import type { Quote, QuoteFile, VatRate } from '../types/db'
+import type { AiQuote, Totals } from '../../supabase/functions/_shared/totals.ts'
 
-export type { AiClarify, AiQuote, Totals }
+/** Format 1 (quotes made before Task 3b), still shown read-only. */
+export type { AiQuote as LegacyAiQuote, Totals as LegacyTotals }
 
 export const MAX_AUDIO_MB = 24
 export const MAX_DOCUMENT_MB = 20
@@ -32,7 +33,7 @@ export async function createQuote(vatRate: VatRate): Promise<Quote> {
   return data
 }
 
-export async function updateQuote(id: string, patch: Partial<Pick<Quote, 'client_name' | 'client_address' | 'job_title' | 'vat_rate'>>) {
+export async function updateQuote(id: string, patch: Partial<Pick<Quote, 'client_name' | 'client_address' | 'job_title' | 'vat_rate' | 'phase'>>) {
   const { error } = await supabase.from('quotes').update(patch).eq('id', id)
   if (error) throw error
 }
@@ -59,65 +60,4 @@ export async function removeQuoteFile(file: QuoteFile) {
   await supabase.storage.from(file.kind === 'audio' ? 'audio' : 'quote-files').remove([file.storage_path])
   const { error } = await supabase.from('quote_files').delete().eq('id', file.id)
   if (error) throw error
-}
-
-async function runGeneration(versionId: string) {
-  const { error } = await supabase.functions.invoke('generate-quote', { body: { quote_version_id: versionId } })
-  if (error) throw error
-}
-
-/** Starts a new version (or restarts `existing` with a corrected description) and calls the AI. */
-export async function startGeneration(quoteId: string, inputText: string, existing?: QuoteVersion): Promise<QuoteVersion> {
-  let version: QuoteVersion
-  if (existing) {
-    const { data, error } = await supabase
-      .from('quote_versions')
-      .update({ input_text: inputText, clarifications: [], ai_output: null, totals: null, status: 'processing', error_message: null })
-      .eq('id', existing.id)
-      .select()
-      .single()
-    if (error) throw error
-    version = data
-  } else {
-    const { data: last } = await supabase
-      .from('quote_versions')
-      .select('version')
-      .eq('quote_id', quoteId)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle()
-    const { data, error } = await supabase
-      .from('quote_versions')
-      .insert({ quote_id: quoteId, version: (last?.version ?? 0) + 1, input_text: inputText, status: 'processing' })
-      .select()
-      .single()
-    if (error) throw error
-    version = data
-  }
-  await runGeneration(version.id)
-  return version
-}
-
-export type ClarifyAnswer = { id: string; selected: string[]; custom: string | null }
-
-/** Saves the answers to the AI's questions and continues the generation. */
-export async function answerClarify(version: QuoteVersion, clarify: AiClarify, answers: ClarifyAnswer[]) {
-  const previous = Array.isArray(version.clarifications) ? version.clarifications : []
-  const round = { understanding: clarify.understanding, questions: clarify.questions, answers }
-  const { error } = await supabase
-    .from('quote_versions')
-    .update({ clarifications: [...previous, round] as unknown as Json, status: 'processing', error_message: null })
-    .eq('id', version.id)
-  if (error) throw error
-  await runGeneration(version.id)
-}
-
-/** "Riprova" after an error or a stuck run. */
-export async function retryGeneration(version: QuoteVersion) {
-  const { error } = await supabase
-    .from('quote_versions')
-    .update({ status: 'processing', error_message: null })
-    .eq('id', version.id)
-  if (error) throw error
-  await runGeneration(version.id)
 }

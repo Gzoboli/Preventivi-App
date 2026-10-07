@@ -7,3 +7,5 @@ alter table public.quotes add column if not exists ai_run_started_at timestamptz
 update public.app_config set value = '20' where key = 'limit_generations_per_quote';
 update public.app_config set value = '30' where key = 'limit_generations_per_user_day';
 update public.app_config set value = '150' where key = 'limit_generations_total_day';
+-- Voice answers on every question card: more voice notes per quote (transcription is cheap).
+update public.app_config set value = '30' where key = 'limit_audio_files_per_quote';

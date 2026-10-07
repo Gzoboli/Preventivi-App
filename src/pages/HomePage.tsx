@@ -5,11 +5,18 @@ import { useAuth } from '../auth/AuthProvider'
 import { OnboardingBanner } from '../components/OnboardingBanner'
 import { supabase } from '../lib/supabase'
 import { quoteNumber } from '../lib/quotes'
+import { LEASE_MS } from '../lib/useConversation'
 import type { Quote } from '../types/db'
 
-type Item = Quote & { quote_versions: { version: number; status: string }[] }
+type Item = Quote & { quote_versions: { version: number; status: string }[]; quote_messages: { count: number }[] }
 
 const CHIPS: Record<string, { label: string; className: string }> = {
+  // conversation (Task 3b): quotes.phase
+  raccolta: { label: 'Ti servono risposte', className: 'bg-amber-100 text-amber-800' },
+  pronto_da_generare: { label: 'Da generare', className: 'bg-accent/10 text-accent' },
+  generato: { label: 'Pronto', className: 'bg-green-100 text-green-800' },
+  in_revisione: { label: 'In revisione', className: 'bg-amber-100 text-amber-800' },
+  // quotes made before Task 3b: status of the latest version
   processing: { label: 'In preparazione…', className: 'bg-accent/10 text-accent' },
   needs_answers: { label: 'Ti servono risposte', className: 'bg-amber-100 text-amber-800' },
   ready: { label: 'Pronto', className: 'bg-green-100 text-green-800' },
@@ -29,7 +36,7 @@ export function HomePage() {
     let alive = true
     void supabase
       .from('quotes')
-      .select('*, quote_versions(version, status)')
+      .select('*, quote_versions(version, status), quote_messages(count)')
       .order('created_at', { ascending: false })
       .limit(50)
       .then(({ data, error }) => {
@@ -78,7 +85,10 @@ export function HomePage() {
           <ul className="mt-3 divide-y divide-line border-y border-line">
             {items.map((q) => {
               const latest = [...q.quote_versions].sort((a, b) => b.version - a.version)[0]
-              const chip = CHIPS[latest?.status ?? 'draft'] ?? CHIPS.draft
+              const conversation = (q.quote_messages[0]?.count ?? 0) > 0
+              const working = q.ai_run_started_at && Date.now() - new Date(q.ai_run_started_at).getTime() < LEASE_MS
+              const key = working ? 'processing' : conversation ? q.phase : (latest?.status ?? 'draft')
+              const chip = CHIPS[key] ?? CHIPS.draft
               return (
                 <li key={q.id}>
                   <Link to={`/preventivi/${q.id}`} className="flex min-h-16 items-center gap-3 py-3 hover:bg-gray-50">
