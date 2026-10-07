@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import {
-  defaultVatRate,
-  answeredHoursPerDay,
-  methodText,
-  pricingInputs,
-  seriesForTier,
-  upliftFor,
-} from '../../supabase/functions/_shared/method.ts'
+import { defaultVatRate, answeredHoursPerDay, methodText, pricingInputs, seriesForTier, upliftFor } from '../../supabase/functions/_shared/method.ts'
 import { normalizeReply, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
+import { EMPTY_JOB_SHEET } from '../../supabase/functions/_shared/pricing.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
 
 const items = [{ code: 'PRESA10', name: 'Presa 10A / bipresa', category: 'Prese', unit: 'punto', price_eur: 36, includes_material: true }]
@@ -33,7 +27,10 @@ describe('pricingInputs', () => {
       q3: { value: 'altro', source: 'user', custom_text: '55 €' },
       q4: { value: 'nessuno', source: 'user' },
       q6: { value: '40', source: 'user' },
-      q7: { value: { base: { choice: 'vimar_plana' }, consigliata: { choice: 'altro', custom: 'Gewiss Chorus' }, top: { choice: 'vimar_eikon' } }, source: 'user' },
+      q7: {
+        value: { base: { choice: 'vimar_plana' }, consigliata: { choice: 'altro', custom: 'Gewiss Chorus' }, top: { choice: 'vimar_eikon' } },
+        source: 'user',
+      },
     }
     const c = pricingInputs(a, items, [{ brand: 'BTicino', discount_pct: 50 }], uplifts, 22)
     expect(c.hourlyRate).toBe(55)
@@ -117,25 +114,88 @@ describe('reply rules', () => {
 
   it('turns "unknown" values back into null', () => {
     const sheet = {
-      tipo_lavoro: 'Ricablaggio', metodo: [], squadra: { persone: 2, aiutante: 'non_so', giorni: 0, ore_giorno: 0 }, ambienti: [],
-      punti: 0, frutti: 'non_so', quadro: '', dico: 'inclusa', altro: [], mancanti: ['giorni'],
+      tipo_lavoro: 'Ricablaggio',
+      metodo: [],
+      squadra: { persone: 2, aiutante: 'non_so', giorni: 0, ore_giorno: 0 },
+      ambienti: [],
+      punti: 0,
+      frutti: 'non_so',
+      quadro: '',
+      dico: 'inclusa',
+      altro: [],
+      mancanti: ['giorni'],
     }
-    const q = normalizeReply({
-      job_sheet: sheet,
-      reply: { type: 'questions', understanding: 'x', method_proposal: [], questions: [{ id: 'a', text: 'Quanti giorni?', why: 'w', options: ['1', '2'], multi: false }], challenges: [{ text: 'c', question_id: '' }] },
-    })
+    const q = normalizeReply(
+      {
+        job_sheet: sheet,
+        reply: {
+          type: 'questions',
+          understanding: 'x',
+          method_proposal: [],
+          questions: [{ id: 'a', text: 'Quanti giorni?', why: 'w', options: ['1', '2'], multi: false }],
+          challenges: [{ text: 'c', question_id: '' }],
+        },
+      },
+      EMPTY_JOB_SHEET,
+    )
     expect(q.job_sheet.squadra).toEqual({ persone: 2, aiutante: null, giorni: null, ore_giorno: null })
     expect(q.job_sheet).toMatchObject({ punti: null, frutti: null, quadro: null, dico: 'inclusa' })
     expect(q.type === 'questions' && q.method_proposal).toBeNull()
     expect(q.type === 'questions' && q.challenges[0].question_id).toBeNull()
 
-    const line = { line_id: 'L1', kind: 'ore', worker: 'nessuno', price_item_code: '', catalogue_code: '', description: 'd', qty: 3, unit: 'h', unit_price: 0, source: 'tuo_listino', why: '', quantity_estimated: false, price_missing: false, replaces_device: false, is_certificate: false }
+    const line = {
+      line_id: 'L1',
+      kind: 'ore',
+      worker: 'nessuno',
+      price_item_code: '',
+      catalogue_code: '',
+      description: 'd',
+      qty: 3,
+      unit: 'h',
+      unit_price: 0,
+      source: 'tuo_listino',
+      why: '',
+      quantity_estimated: false,
+      price_missing: false,
+      replaces_device: false,
+      is_certificate: false,
+    }
     const t = { series: '', what_you_get: [] }
-    const quote = normalizeReply({
-      job_sheet: sheet,
-      reply: { type: 'quote', title: 't', summary: 's', sections: [{ name: 'S', icon: 'other', method: 'punto', method_why: '', lines: [line] }], tiers: { offered: false, base: t, consigliata: t, top: t }, build_notes: [], assumptions: [], exclusions: [], to_check: [{ text: 'x', line_id: 'L1' }], estimated_days: 0, team: { persone: 0, giorni: 0, ore_giorno: 0 } },
+    const quote = normalizeReply(
+      {
+        reply: {
+          type: 'quote',
+          title: 't',
+          summary: 's',
+          sections: [{ name: 'S', icon: 'other', method: 'punto', method_why: '', lines: [line] }],
+          tiers: { offered: false, base: t, consigliata: t, top: t },
+          build_notes: [],
+          assumptions: [],
+          exclusions: [],
+          to_check: [{ text: 'x', line_id: 'L1' }],
+          estimated_days: 0,
+          team: { persone: 0, giorni: 0, ore_giorno: 0 },
+        },
+      },
+      q.job_sheet,
+    )
+    // Quote replies have no job_sheet: the current one is kept.
+    expect(quote.job_sheet).toBe(q.job_sheet)
+    expect(quote.type === 'quote' && quote.sections[0].lines[0]).toMatchObject({
+      worker: null,
+      price_item_code: null,
+      catalogue_code: null,
+      unit_price: null,
     })
-    expect(quote.type === 'quote' && quote.sections[0].lines[0]).toMatchObject({ worker: null, price_item_code: null, catalogue_code: null, unit_price: null })
+    const odd = normalizeReply(
+      { reply: { type: 'quote', sections: [{ name: 'S', icon: 'garage', method: '?', lines: [{ ...line, kind: 'cosa', source: '?' }] }] } },
+      q.job_sheet,
+    )
+    expect(odd.type === 'quote' && odd.sections[0]).toMatchObject({
+      icon: 'other',
+      method: 'ore_materiali',
+      lines: [{ kind: 'materiale', source: 'mia_stima' }],
+    })
     expect(quote.type === 'quote' && [quote.tiers, quote.estimated_days, quote.team]).toEqual([null, null, null])
   })
 })

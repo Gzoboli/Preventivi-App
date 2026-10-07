@@ -5,6 +5,10 @@
 // has no nullable fields: "unknown" is "" for text, 0 for numbers, "non_so"/"nessuno" for choices,
 // and an empty list for optional lists. `normalizeReply` turns that back into the app's types (null).
 // The only union is the choice between reply types.
+//
+// The API also caps the size of the compiled grammar. The quote is the biggest reply (sections → lines),
+// so its schema has no job_sheet (the facts are already collected) and no enums: the allowed values
+// are in the descriptions and `normalizeLine`/`normalizeSection` map anything else to a safe default.
 import type { AiLine, AiProposal, AiQuestions, AiQuote, AiReady, JobSheet, MethodProposal } from './pricing.ts'
 
 type Schema = Record<string, unknown>
@@ -21,6 +25,14 @@ function obj(properties: Record<string, Schema>): Schema {
 }
 
 const method = enumOf('punto', 'ore_materiali', 'forfait')
+/** A plain string whose allowed values are only described (keeps the quote grammar small). */
+const oneOf = (...values: string[]): Schema => ({ type: 'string', description: `Uno tra: ${values.join(', ')}` })
+
+const KINDS = ['punto', 'ore', 'materiale', 'forfait'] as const
+const WORKERS = ['titolare', 'aiutante', 'nessuno'] as const
+const SOURCES = ['detto_da_te', 'tuo_listino', 'catalogo', 'mia_stima'] as const
+const ICONS = ['kitchen', 'bathroom', 'bedroom', 'living', 'hallway', 'outdoor', 'panel', 'other'] as const
+const METHODS = ['punto', 'ore_materiali', 'forfait'] as const
 
 const jobSheet = obj({
   tipo_lavoro: str,
@@ -44,15 +56,15 @@ const questionsFields = {
 
 const line = obj({
   line_id: str,
-  kind: enumOf('punto', 'ore', 'materiale', 'forfait'),
-  worker: enumOf('titolare', 'aiutante', 'nessuno'),
+  kind: oneOf(...KINDS),
+  worker: oneOf(...WORKERS),
   price_item_code: str,
   catalogue_code: str,
   description: str,
   qty: num,
   unit: str,
   unit_price: num,
-  source: enumOf('detto_da_te', 'tuo_listino', 'catalogo', 'mia_stima'),
+  source: oneOf(...SOURCES),
   why: str,
   quantity_estimated: bool,
   price_missing: bool,
@@ -68,8 +80,8 @@ const quoteFields = {
   sections: list(
     obj({
       name: str,
-      icon: enumOf('kitchen', 'bathroom', 'bedroom', 'living', 'hallway', 'outdoor', 'panel', 'other'),
-      method,
+      icon: oneOf(...ICONS),
+      method: oneOf(...METHODS),
       method_why: str,
       lines: list(line),
     }),
@@ -99,7 +111,9 @@ export function replySchema(mode: Mode): Schema {
       ? { anyOf: [variant('questions', questionsFields), variant('ready_to_generate', { summary: str })] }
       : mode === 'revise'
         ? { anyOf: [variant('proposal', proposalFields), variant('questions', questionsFields)] }
-        : variant('quote', quoteFields)
+        : null
+  // The quote alone (no job_sheet): see the note at the top.
+  if (!reply) return obj({ reply: variant('quote', quoteFields) })
   // job_sheet once, outside the union (it is the same for every reply type).
   return obj({ job_sheet: jobSheet, reply })
 }
@@ -136,9 +150,12 @@ export function normalizeJobSheetReply(j: Raw): JobSheet {
 
 export type Reply = AiQuestions | AiReady | AiQuote | AiProposal
 
-/** The raw structured output ({ job_sheet, reply }) → the app's reply types. */
-export function normalizeReply(raw: Raw): Reply {
-  const job_sheet = normalizeJobSheetReply((raw.job_sheet ?? {}) as Raw)
+/**
+ * The raw structured output ({ job_sheet, reply }) → the app's reply types.
+ * Without job_sheet (quote replies) the current one is kept.
+ */
+export function normalizeReply(raw: Raw, current: JobSheet): Reply {
+  const job_sheet = raw.job_sheet ? normalizeJobSheetReply(raw.job_sheet as Raw) : current
   const r = (raw.reply ?? {}) as Raw
   switch (r.type) {
     case 'questions': {
@@ -177,7 +194,10 @@ export function normalizeReply(raw: Raw): Reply {
         title: String(r.title ?? ''),
         summary: String(r.summary ?? ''),
         sections: arr<Raw>(r.sections).map((s) => ({
-          ...(s as unknown as AiQuote['sections'][number]),
+          name: String(s.name ?? ''),
+          icon: pick(s.icon, ICONS, 'other'),
+          method: pick(s.method, METHODS, 'ore_materiali'),
+          method_why: String(s.method_why ?? ''),
           lines: arr<Raw>(s.lines).map(normalizeLine),
         })),
         tiers: tiers.offered === true ? (tiers as unknown as NonNullable<AiQuote['tiers']>) : null,
@@ -194,9 +214,14 @@ export function normalizeReply(raw: Raw): Reply {
   }
 }
 
+const pick = <T extends string>(v: unknown, allowed: readonly T[], fallback: T): T =>
+  typeof v === 'string' && (allowed as readonly string[]).includes(v) ? (v as T) : fallback
+
 function normalizeLine(l: Raw): AiLine {
   return {
     ...(l as unknown as AiLine),
+    kind: pick(l.kind, KINDS, 'materiale'),
+    source: pick(l.source, SOURCES, 'mia_stima'),
     worker: l.worker === 'titolare' || l.worker === 'aiutante' ? l.worker : null,
     price_item_code: text(l.price_item_code),
     catalogue_code: text(l.catalogue_code),

@@ -18,7 +18,7 @@ import { SERIES } from '../_shared/questions.ts'
 import { answeredHoursPerDay, methodText, pricingInputs, seriesForTier, type DiscountRow, type PriceRow, type UpliftRow } from '../_shared/method.ts'
 import { normalizeReply, replySchema, type Mode, type Reply } from '../_shared/aiSchema.ts'
 import { renderTranscript, type ChatMessage } from '../_shared/chat.ts'
-import { allLines, priceQuote, type CatalogueItem } from '../_shared/pricing.ts'
+import { allLines, normalizeJobSheet, priceQuote, type CatalogueItem, type JobSheet } from '../_shared/pricing.ts'
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void }
 
@@ -353,6 +353,8 @@ type Context = {
   system: Anthropic.TextBlockParam[]
   content: Anthropic.ContentBlockParam[]
   pricing: ReturnType<typeof pricingInputs>
+  /** The facts collected so far: kept as they are by quote replies, which don't repeat them. */
+  jobSheet: JobSheet
 }
 
 async function buildContext(
@@ -467,7 +469,7 @@ async function buildContext(
     { type: 'text', text: config.str('system_prompt_v2', config.str('system_prompt', '')) },
     { type: 'text', text: TECHNICAL_RULES, cache_control: { type: 'ephemeral' } },
   ]
-  return { system, content, pricing }
+  return { system, content, pricing, jobSheet: normalizeJobSheet(quote.job_sheet) }
 }
 
 /** A few common items per series the electrician uses, so the AI can cite real codes and prices. */
@@ -524,7 +526,7 @@ function modeInstruction(job: Job, hoursPerDay: number | null): string {
 }
 
 const TECHNICAL_RULES = `Regole tecniche dell’app (valgono sempre e prevalgono sul formato descritto sopra):
-- Rispondi solo con l’oggetto JSON richiesto: { job_sheet, reply }. Tutto in italiano.
+- Rispondi solo con l’oggetto JSON richiesto: { job_sheet, reply } (per il preventivo completo solo { reply }). Tutto in italiano.
 - Valori sconosciuti: testo "" (stringa vuota), numeri 0, scelte "non_so"/"nessuno", elenchi vuoti. Non inventare valori per riempire i campi.
 - job_sheet.metodo è un elenco di {sezione, metodo}. squadra.ore_giorno: le ore di una giornata.
 - Domande: al massimo 3, le più importanti prima; l’app le mostra una alla volta. Per ognuna:
@@ -549,23 +551,40 @@ async function askAi(config: Config, model: string, ctx: Context, mode: Mode, t0
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), remaining)
   const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY, maxRetries: 0 })
+  const schema = replySchema(mode)
+  const effort = config.str('ai_effort', 'medium') as 'low' | 'medium' | 'high'
+
+  // strict: the API enforces the schema. Not strict (only if the API refuses the schema as too
+  // complex): the schema goes in the instructions and the reply is checked the same way afterwards.
+  const run = (strict: boolean) =>
+    client.messages
+      .stream(
+        {
+          model,
+          max_tokens: 32000,
+          thinking: { type: 'adaptive' },
+          output_config: strict ? { effort, format: { type: 'json_schema', schema } } : { effort },
+          system: strict
+            ? ctx.system
+            : [
+                ...ctx.system,
+                { type: 'text', text: `Rispondi solo con un oggetto JSON valido (senza testo prima o dopo) che segue questo JSON Schema:\n${JSON.stringify(schema)}` },
+              ],
+          messages: [{ role: 'user', content: ctx.content }],
+        },
+        { signal: controller.signal },
+      )
+      .finalMessage()
 
   try {
-    const stream = client.messages.stream(
-      {
-        model,
-        max_tokens: 32000,
-        thinking: { type: 'adaptive' },
-        output_config: {
-          effort: config.str('ai_effort', 'medium') as 'low' | 'medium' | 'high',
-          format: { type: 'json_schema', schema: replySchema(mode) },
-        },
-        system: ctx.system,
-        messages: [{ role: 'user', content: ctx.content }],
-      },
-      { signal: controller.signal },
-    )
-    const msg = await stream.finalMessage()
+    let msg: Anthropic.Message
+    try {
+      msg = await run(true)
+    } catch (e) {
+      if (!(e instanceof Anthropic.BadRequestError && /grammar|schema/i.test(e.message))) throw e
+      console.warn('generate-quote schema refused, retrying without strict output', mode, e.message)
+      msg = await run(false)
+    }
     const usage = { input_tokens: msg.usage.input_tokens, output_tokens: msg.usage.output_tokens }
 
     if (msg.stop_reason === 'refusal') {
@@ -575,7 +594,7 @@ async function askAi(config: Config, model: string, ctx: Context, mode: Mode, t0
       throw new UserError('Il lavoro è troppo grande da preparare in una volta. Prova a dividerlo in più preventivi.')
     }
     const text = msg.content.flatMap((b) => (b.type === 'text' ? [b.text] : [])).join('')
-    const reply = normalizeReply(JSON.parse(text))
+    const reply = normalizeReply(parseJson(text), ctx.jobSheet)
     if (reply.type === 'questions' && !reply.questions.length && !reply.method_proposal) throw new Error('no questions')
     if (reply.type === 'quote' && !reply.sections.length) throw new Error('empty quote')
     return { reply, usage }
@@ -587,6 +606,14 @@ async function askAi(config: Config, model: string, ctx: Context, mode: Mode, t0
   } finally {
     clearTimeout(timer)
   }
+}
+
+/** The JSON object in the reply (a non-strict reply may wrap it in a code fence). */
+function parseJson(text: string): Record<string, unknown> {
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end < start) throw new Error('no JSON in reply')
+  return JSON.parse(text.slice(start, end + 1))
 }
 
 // ---------------------------------------------------------------- helpers
