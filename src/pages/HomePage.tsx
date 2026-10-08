@@ -17,6 +17,8 @@ const CHIPS: Record<string, { label: string; className: string }> = {
   pronto_da_generare: { label: 'Da generare', className: 'bg-accent/10 text-accent' },
   generato: { label: 'Pronto', className: 'bg-green-100 text-green-800' },
   in_revisione: { label: 'In revisione', className: 'bg-amber-100 text-amber-800' },
+  // the client PDF was sent (Task 5): quotes.status
+  inviato: { label: 'Inviato', className: 'bg-green-100 text-green-800' },
   // quotes made before Task 3b: status of the latest version
   processing: { label: 'In preparazione…', className: 'bg-accent/10 text-accent' },
   needs_answers: { label: 'Ti servono risposte', className: 'bg-amber-100 text-amber-800' },
@@ -113,7 +115,7 @@ function QuoteRow({ q, onRenamed, onDeleted }: { q: Item; onRenamed: (title: str
   const latest = [...q.quote_versions].sort((a, b) => b.version - a.version)[0]
   const conversation = (q.quote_messages[0]?.count ?? 0) > 0
   const working = q.ai_run_started_at && Date.now() - new Date(q.ai_run_started_at).getTime() < LEASE_MS
-  const key = working ? 'processing' : conversation ? q.phase : (latest?.status ?? 'draft')
+  const key = working ? 'processing' : q.status === 'inviato' ? 'inviato' : conversation ? q.phase : (latest?.status ?? 'draft')
   const chip = CHIPS[key] ?? CHIPS.draft
 
   const close = () => {

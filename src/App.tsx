@@ -7,6 +7,7 @@ import { HomePage } from './pages/HomePage'
 import { MetodoPage } from './pages/MetodoPage'
 import { OnboardingPage } from './pages/OnboardingPage'
 import { QuotePage } from './pages/QuotePage'
+import { SendPage } from './pages/SendPage'
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
               <Route index element={<HomePage />} />
               <Route path="metodo" element={<MetodoPage />} />
               <Route path="preventivi/:id" element={<QuotePage />} />
+              <Route path="preventivi/:id/pdf" element={<SendPage />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

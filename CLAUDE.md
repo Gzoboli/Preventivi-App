@@ -24,20 +24,20 @@ Product spec: `SPEC.md`. The owner (Gio) is not a developer: after every task, e
 
 ## Database — already exists, do NOT recreate
 Managed from outside this repo (via the Supabase connector). Tables in `public`:
-- `profiles` (id = auth user id; auto-created on first login — sign-up is open, anyone with an email can log in) — company_name, legal_form, vat_number, address, phone, email, logo_path, accent_color, onboarding_answers jsonb, method_notes, onboarding_completed.
+- `profiles` (id = auth user id; auto-created on first login — sign-up is open, anyone with an email can log in) — company_name, legal_form, vat_number, address, phone, email, logo_path, accent_color, onboarding_answers jsonb (also `variation_clause`, the "Clausola per imprevisti" of the client PDF), method_notes, onboarding_completed.
 - `default_price_items` (read-only) — starter "a punto" price list.
 - RPC `init_my_price_items()` — copies defaults into the user's `price_items`; returns rows inserted.
 - `price_items` (user_id, code, name, category, unit, price_eur, includes_material, notes, sort_order).
 - `discounts` (user_id, brand, discount_pct, source).
 - `catalogue` (read-only, ~24k rows) — marca, codice, ean, serie, descrizione, prezzo_listino_eur, unita, categoria, fonte.
-- `quotes` (user_id, quote_year + quote_number — per user per year, set by trigger; client_name, client_address, job_title, status 'bozza'|'inviato', selected_tier 'base'|'media'|'top' (media shown as "Consigliata"), vat_rate 4|10|22, estimated_days, show_unit_prices, job_sheet jsonb "Scheda lavoro", phase 'raccolta'|'pronto_da_generare'|'generato'|'in_revisione', ai_run_started_at = AI run lease, stale after 5 min).
+- `quotes` (user_id, quote_year + quote_number — per user per year, set by trigger; client_name, client_address, job_title, status 'bozza'|'inviato', selected_tier 'base'|'media'|'top' (media shown as "Consigliata"), vat_rate null|0–100 (null = not chosen yet, 0 = senza IVA; chosen before the client PDF), estimated_days, show_unit_prices, job_sheet jsonb "Scheda lavoro", phase 'raccolta'|'pronto_da_generare'|'generato'|'in_revisione', ai_run_started_at = AI run lease, stale after 5 min).
 - `quote_messages` (one chat per quote: role electrician|assistant|system, kind text|voice|file|questions|method_proposal|proposal|quote_ready|note, text, audio_file_id, file_ids[], payload jsonb, quote_version_id). RLS + Realtime.
 - `quote_versions` (quote_id, user_id, version, status 'processing'|'needs_answers'|'ready'|'error', error_message, run_started_at (step lease), input_text, transcripts jsonb, clarifications jsonb, feedback, ai_output jsonb, totals jsonb, rating -1|1, rating_comment, updated_at). Realtime enabled.
 - `series_uplift` (read-only) — marca, serie, tier_hint, uplift_per_point_eur, plate_style, short_description.
 - `ai_usage` (server-only) — log of every paid AI call, used to enforce the limits in `app_config`.
 - `quote_files` (quote_id, user_id, storage_path, file_name, mime_type, kind).
 - `edits_log` (user_id, quote_version_id, line_ref, before, after).
-- `app_config` (server-only key/value): `ai_model`, `ai_effort`, `transcription_model`, `system_prompt` (old), `system_prompt_v2` (Task 3b, used now), `limit_generations_per_quote`, `limit_generations_per_user_day`, `limit_generations_total_day`, `limit_audio_files_per_quote`.
+- `app_config` (server-only key/value): `ai_model`, `ai_effort`, `transcription_model`, `system_prompt` (old), `system_prompt_v2` (Task 3b + §8 client texts of Task 5, used now), `limit_generations_per_quote`, `limit_generations_per_user_day`, `limit_generations_total_day`, `limit_audio_files_per_quote`.
 - Storage buckets (private): `logos`, `quote-files`, `audio`. Path must start with the user id: `{user_id}/...`.
 
 `user_id` columns default to `auth.uid()` — don't send it from the client.

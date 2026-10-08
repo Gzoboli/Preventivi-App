@@ -135,12 +135,18 @@ List with chips from the phase: Ti servono risposte · Da generare · Pronto · 
 
 ---
 
-## 5. PDF + sharing
+## 5. PDF for the client + sending (Task 5 v3)
 
-Generate a **very visual, concise, premium** A4 PDF in Italian, branded with the ELECTRICIAN's logo, details and accent colour (not the app's).
+Approved visual reference: `riferimento-pdf-cliente.html` (2 A4 pages). Written for the **end client**: very visual, plain Italian, most important information first, the **electrician's** brand (logo or initials, details, profile colour), never the app's name. Made in the browser with `@react-pdf/renderer` (lazy-loaded), Inter embedded.
 
-- **Page 1 — Colpo d'occhio:** logo + company header, client, date, quote number. One-sentence summary of the job. Room-by-room overview as icon tiles (icon, room name, number of points). The three tiers as side-by-side cards (series name, short description, total IVA inclusa), the recommended one highlighted. Key info strip: validità, tempi stimati, pagamenti.
-- **Page 2+ — Dettaglio:** one clean table per room (voce, q.tà, prezzo, totale), room subtotals, then totals block (imponibile, IVA, totale) for the selected tier.
-- **Last page — Condizioni:** esclusioni, ipotesi, pagamenti, validità, dichiarazione di conformità, space for client signature "Per accettazione".
+**Never in the PDF:** sources (detto da te / listino / catalogo / mia stima), `why`, `build_notes`, `to_check`, validator flags, "quantità stimata", catalogue codes, technical product names, discounts, markup, hours and rates (except in the optional price table). The model `src/lib/pdf/clientQuote.ts` only reads the client fields; tests check it on a quote full of internal information.
 
-Buttons: **Condividi su WhatsApp** (Web Share API with the PDF file; fallback to download + wa.me link), **Invia per email** (mailto with PDF download), **Scarica PDF**. Sharing sets status to "inviato".
+- **IVA:** chosen by the electrician in "Pronto da inviare?" before the PDF: Senza IVA · 4% · 10% · 22% · Altro (any %, typed). `quotes.vat_rate` is nullable (null = not chosen yet). Senza IVA → "IVA esclusa" everywhere.
+- **Page 1 — Colpo d'occhio** (never spills onto page 2: tiles and bullets are shortened instead): header (logo/initials, company, P.IVA, phone, email · quote number, date, client, address, 2 pt accent rule) · kicker "Il lavoro", `title`, `summary` · price block in the accent colour (total, "IVA X% inclusa / imponibile" or "IVA esclusa"), or three cards Base (slate) / **Consigliata** (accent, badge) / Top (brass) with plate drawings, series, `what_you_get`, total · "Cosa comprende" tiles (one per section, max 8, icon by section type; the free certificate stays on page 2) · "Non comprende" (`client_exclusions`, fallback q13) + "Se troviamo sorprese" (the electrician's clause, `onboarding_answers.variation_clause`, editable in "Il mio metodo") · info strip Tempi / Validità (q11) / Pagamento (q12 short) · optional "Vuole anche…?" box (`client_upgrade`, priced by the app from the price list) · footer.
+- **Page 2 — Il lavoro nel dettaglio:** one block per section (icon, name, subtotal for the detailed option; certificate "inclusa"; missing prices "da definire in sopralluogo", never 0 €; `client_points`) · totals · "Cosa abbiamo considerato" (`client_notes`, fallback `assumptions`) + "Pagamento" (q12 in full) · "Per accettazione" (Data, Firma del cliente).
+- **Page 3** only with "Mostra il dettaglio dei prezzi" (`quotes.show_unit_prices`): Voce · Q.tà · Prezzo · Totale per section, hours as "Manodopera titolare — 12 ore".
+- **Colours:** the profile colour, darkened automatically when white text on it would be below 4.5:1; icon squares use ~10% of it.
+
+**AI fields** (quote schema, §8 of `system_prompt_v2`): `sections[].client_summary`, `sections[].client_points`, `client_notes`, `client_exclusions`, `client_upgrade {text, detail, price_item_code, qty}`.
+
+**In the app:** "PDF per il cliente" on the quote → `/preventivi/:id/pdf` **"Pronto da inviare?"** (IVA, missing company data → inline CompanyForm, missing prices / flags / tier price to confirm → [Completa] / [Continua lo stesso], option to detail (default Consigliata), price-detail switch) → **"Invia il preventivo"**: page 1 preview (pdf.js), "Apri anteprima", **Condividi su WhatsApp** (share sheet with the file; fallback download + wa.me text), **Invia per email** (share sheet; desktop download + mailto), **Scarica PDF**. File `Preventivo_{Cliente}_{anno}-{numero}.pdf`. Any action → `quotes.status = 'inviato'`, chat note "PDF V{n} inviato", toast "Segnato come inviato" + Annulla. Home shows "Inviato".

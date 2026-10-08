@@ -89,7 +89,11 @@ describe('client PDF model (job 2 of the reference)', () => {
   it('merges small sections into "Altro" beyond 8 tiles', () => {
     const input = job2Input()
     // Without the optional extra there is room for two rows of tiles.
-    const many = { ...input.ai, client_upgrade: null, sections: Array.from({ length: 10 }, (_, i) => ({ ...input.ai.sections[3], name: `Stanza ${i + 1}` })) }
+    const many = {
+      ...input.ai,
+      client_upgrade: null,
+      sections: Array.from({ length: 10 }, (_, i) => ({ ...input.ai.sections[3], name: `Stanza ${i + 1}` })),
+    }
     expect(buildClientQuote({ ...input, ai: many }).tiles).toHaveLength(8)
     expect(buildClientQuote({ ...input, ai: many }).tiles[7].name).toBe('Altro')
   })

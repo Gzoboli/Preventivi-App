@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, ChevronDown, ClipboardCheck, Lightbulb, Loader2, MessageSquare, Package, Wrench } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, ChevronDown, ClipboardCheck, FileText, Lightbulb, Loader2, MessageSquare, Package, Wrench } from 'lucide-react'
 import { updateQuote } from '../../lib/quotes'
 import { deleteLines } from '../../lib/conversation'
 import { LineSheet } from './LineSheet'
 import { VatPicker, vatNote } from './VatPicker'
+import { Plate, TIER_PLATES } from './Plate'
 import { TIERS } from '../../lib/onboarding/questions'
 import { METHOD_LABELS } from '../../../supabase/functions/_shared/chat.ts'
 import { formatEur, formatQty } from '../../../supabase/functions/_shared/format.ts'
@@ -17,7 +19,10 @@ export function sourceTag(line: AiLine, p: PricedLine | undefined): { icon: stri
   if (p.price_source === 'detto' || line.source === 'detto_da_te') return { icon: '🗣', label: 'Detto da te' }
   if (p.price_source === 'listino' || p.price_source === 'tariffa') return { icon: '📋', label: 'Tuo listino' }
   if (p.price_source === 'catalogo' && p.catalogue) {
-    return { icon: '📦', label: `Catalogo (−${p.catalogue.discount_pct.toLocaleString('it-IT')}% sconto, +${p.catalogue.markup_pct.toLocaleString('it-IT')}% ricarico)` }
+    return {
+      icon: '📦',
+      label: `Catalogo (−${p.catalogue.discount_pct.toLocaleString('it-IT')}% sconto, +${p.catalogue.markup_pct.toLocaleString('it-IT')}% ricarico)`,
+    }
   }
   return { icon: '💡', label: 'Mia stima' }
 }
@@ -25,7 +30,17 @@ export function sourceTag(line: AiLine, p: PricedLine | undefined): { icon: stri
 const builtKey = (versionId: string) => `come-costruito-${versionId}`
 
 /** A generated quote (format 2): prices, how it was built, what to check, editable lines. */
-export function QuoteResult({ quote, version, previous, onChanged }: { quote: Quote; version: QuoteVersion; previous: QuoteVersion | null; onChanged: () => void }) {
+export function QuoteResult({
+  quote,
+  version,
+  previous,
+  onChanged,
+}: {
+  quote: Quote
+  version: QuoteVersion
+  previous: QuoteVersion | null
+  onChanged: () => void
+}) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals
   const [vat, setVat] = useState<number | null>(quote.vat_rate == null ? null : Number(quote.vat_rate))
@@ -108,15 +123,22 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
             const { totale } = withVat(tier.imponibile)
             return (
               <section key={t.id} className={`rounded-xl border p-4 ${t.id === 'media' ? 'border-accent' : 'border-line'}`}>
-                <h2 className="font-semibold">{t.label}</h2>
-                {info?.series && <p className="text-sm text-muted">{info.series}</p>}
+                <div className="flex items-center gap-3">
+                  <Plate style={TIER_PLATES[t.id].style} color={TIER_PLATES[t.id].color} />
+                  <div>
+                    <h2 className="font-semibold">{t.label}</h2>
+                    {info?.series && <p className="text-sm text-muted">{info.series}</p>}
+                  </div>
+                </div>
                 <p className={`mt-1 text-2xl font-semibold tabular-nums ${tier.uplift_missing ? 'text-amber-700' : ''}`}>
                   {tier.uplift_missing ? `da ${formatEur(totale)}` : formatEur(totale)}
                 </p>
                 <p className="text-sm text-muted">{vatNote(vat, tier.imponibile)}</p>
                 {t.id !== 'base' && (
                   <p className="mt-2 text-sm text-muted">
-                    {tier.uplift_missing ? 'Sovrapprezzo della serie da confermare' : `Sovrapprezzo stimato dai listini su ${formatQty(totals.device_points, 'punti')} con frutto nuovo`}
+                    {tier.uplift_missing
+                      ? 'Sovrapprezzo della serie da confermare'
+                      : `Sovrapprezzo stimato dai listini su ${formatQty(totals.device_points, 'punti')} con frutto nuovo`}
                   </p>
                 )}
                 {info && (
@@ -153,6 +175,13 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
           }}
         />
       </div>
+
+      <Link
+        to={`/preventivi/${quote.id}/pdf`}
+        className="mt-6 flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-accent text-lg font-semibold text-white hover:bg-accent-hover"
+      >
+        <FileText className="size-5" aria-hidden /> PDF per il cliente
+      </Link>
 
       {changes.length > 0 && (
         <section className="mt-6 rounded-xl border border-accent/40 bg-accent/5 p-4">
@@ -251,7 +280,9 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
                             {tag.icon} {tag.label}
                           </span>
                           {l.quantity_estimated && <span className="rounded-full bg-gray-100 px-2 py-0.5 text-muted">quantità stimata</span>}
-                          {p?.price_missing && <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">prezzo mancante</span>}
+                          {p?.price_missing && (
+                            <span className="rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800">prezzo mancante</span>
+                          )}
                         </span>
                       </span>
                       <span className="text-sm text-muted tabular-nums">
@@ -272,7 +303,11 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Lightbulb className="size-5 text-muted" aria-hidden /> Ipotesi
           </h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{ai.assumptions.map((a) => <li key={a}>{a}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {ai.assumptions.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
         </section>
       )}
       {ai.exclusions.length > 0 && (
@@ -280,7 +315,11 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
           <h2 className="flex items-center gap-2 text-lg font-semibold">
             <Package className="size-5 text-muted" aria-hidden /> Esclusioni
           </h2>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{ai.exclusions.map((a) => <li key={a}>{a}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            {ai.exclusions.map((a) => (
+              <li key={a}>{a}</li>
+            ))}
+          </ul>
         </section>
       )}
       {(ai.estimated_days != null || ai.team) && (

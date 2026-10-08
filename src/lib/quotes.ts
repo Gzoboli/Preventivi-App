@@ -34,9 +34,30 @@ export async function createQuote(): Promise<Quote> {
   return data
 }
 
-export async function updateQuote(id: string, patch: Partial<Pick<Quote, 'client_name' | 'client_address' | 'job_title' | 'vat_rate' | 'phase'>>) {
+export async function updateQuote(
+  id: string,
+  patch: Partial<
+    Pick<Quote, 'client_name' | 'client_address' | 'job_title' | 'vat_rate' | 'phase' | 'selected_tier' | 'show_unit_prices' | 'status'>
+  >,
+) {
   const { error } = await supabase.from('quotes').update(patch).eq('id', id)
   if (error) throw error
+}
+
+/** After the PDF is sent or downloaded: status "inviato" and a note in the chat. Returns what "Annulla" needs. */
+export async function markSent(quote: Pick<Quote, 'id' | 'status'>, version: number): Promise<{ previousStatus: string; noteId: string | null }> {
+  await updateQuote(quote.id, { status: 'inviato' })
+  const { data } = await supabase
+    .from('quote_messages')
+    .insert({ quote_id: quote.id, role: 'electrician', kind: 'note', text: `PDF V${version} inviato` })
+    .select('id')
+    .single()
+  return { previousStatus: quote.status, noteId: data?.id ?? null }
+}
+
+export async function undoSent(quoteId: string, undo: { previousStatus: string; noteId: string | null }) {
+  await updateQuote(quoteId, { status: undo.previousStatus })
+  if (undo.noteId) await supabase.from('quote_messages').delete().eq('id', undo.noteId)
 }
 
 /** Deletes a quote and its files. Messages and versions go with it (ON DELETE CASCADE). */

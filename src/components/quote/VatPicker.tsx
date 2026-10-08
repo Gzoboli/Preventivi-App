@@ -69,6 +69,7 @@ export function VatPicker({ value, onChange, label = 'IVA:' }: { value: number |
           </label>
           <input
             id="vat-other"
+            aria-label="Percentuale IVA"
             inputMode="decimal"
             value={text}
             autoFocus={!custom}
