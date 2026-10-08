@@ -199,7 +199,15 @@ describe('reply rules', () => {
 describe('client texts (Task 5)', () => {
   it('keeps the client texts and an upgrade only when it is complete', () => {
     const base = { type: 'quote', title: 't', summary: 's', tiers: { offered: false }, team: {} }
-    const sec = { name: 'Cavi', icon: 'other', method: 'ore_materiali', method_why: '', lines: [], client_summary: ' 10 punti ', client_points: ['Cavi nuovi', ' '] }
+    const sec = {
+      name: 'Cavi',
+      icon: 'other',
+      method: 'ore_materiali',
+      method_why: '',
+      lines: [],
+      client_summary: ' 10 punti ',
+      client_points: ['Cavi nuovi', ' '],
+    }
     const q = normalizeReply(
       {
         reply: {
@@ -215,7 +223,10 @@ describe('client texts (Task 5)', () => {
     expect(q.type === 'quote' && q.sections[0]).toMatchObject({ client_summary: '10 punti', client_points: ['Cavi nuovi'] })
     expect(q.type === 'quote' && [q.client_notes, q.client_exclusions]).toEqual([['Tubi in buono stato'], ['Opere murarie']])
     expect(q.type === 'quote' && q.client_upgrade).toMatchObject({ price_item_code: 'INT', qty: 7 })
-    const none = normalizeReply({ reply: { ...base, sections: [sec], client_upgrade: { text: '', detail: '', price_item_code: '', qty: 0 } } }, EMPTY_JOB_SHEET)
+    const none = normalizeReply(
+      { reply: { ...base, sections: [sec], client_upgrade: { text: '', detail: '', price_item_code: '', qty: 0 } } },
+      EMPTY_JOB_SHEET,
+    )
     expect(none.type === 'quote' && none.client_upgrade).toBeNull()
   })
 

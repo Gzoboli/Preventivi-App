@@ -35,21 +35,49 @@ let n = 0
 function line(p: Partial<AiLine>): AiLine {
   n += 1
   return {
-    line_id: `L${n}`, kind: 'punto', worker: null, price_item_code: null, catalogue_code: null, description: `Voce ${n}`,
-    qty: 1, unit: 'punto', unit_price: null, source: 'tuo_listino', why: '', quantity_estimated: false, price_missing: false,
-    replaces_device: false, is_certificate: false, ...p,
+    line_id: `L${n}`,
+    kind: 'punto',
+    worker: null,
+    price_item_code: null,
+    catalogue_code: null,
+    description: `Voce ${n}`,
+    qty: 1,
+    unit: 'punto',
+    unit_price: null,
+    source: 'tuo_listino',
+    why: '',
+    quantity_estimated: false,
+    price_missing: false,
+    replaces_device: false,
+    is_certificate: false,
+    ...p,
   }
 }
 
 function quote(sections: AiQuote['sections'], extra: Partial<AiQuote> = {}): AiQuote {
   return {
-    type: 'quote', job_sheet: { ...EMPTY_JOB_SHEET, dico: 'inclusa' }, title: 'Prova', summary: '', sections, tiers: null,
-    build_notes: [], assumptions: [], exclusions: [], to_check: [], estimated_days: null, team: null, ...extra,
+    type: 'quote',
+    job_sheet: { ...EMPTY_JOB_SHEET, dico: 'inclusa' },
+    title: 'Prova',
+    summary: '',
+    sections,
+    tiers: null,
+    build_notes: [],
+    assumptions: [],
+    exclusions: [],
+    to_check: [],
+    estimated_days: null,
+    team: null,
+    ...extra,
   }
 }
 
 const section = (lines: AiLine[], method: AiQuote['sections'][number]['method'] = 'punto') => ({
-  name: 'Soggiorno', icon: 'living' as const, method, method_why: '', lines,
+  name: 'Soggiorno',
+  icon: 'living' as const,
+  method,
+  method_why: '',
+  lines,
 })
 
 describe('pricing', () => {
@@ -98,7 +126,11 @@ describe('pricing', () => {
   })
 
   it('shows one price when no device is replaced; otherwise the surcharge applies to replaced devices only', () => {
-    const tiers = { base: { series: 'Plana', what_you_get: [] }, consigliata: { series: 'Arké', what_you_get: [] }, top: { series: 'Eikon', what_you_get: [] } }
+    const tiers = {
+      base: { series: 'Plana', what_you_get: [] },
+      consigliata: { series: 'Arké', what_you_get: [] },
+      top: { series: 'Eikon', what_you_get: [] },
+    }
     const kept = quote([section([line({ price_item_code: 'INT', qty: 10 })])], { tiers })
     expect(priceQuote(kept, ctx).tiers).toBeNull()
 
@@ -123,7 +155,9 @@ describe('pricing', () => {
   })
 
   it('prices the optional extra from his price list, never from the AI', () => {
-    const q = quote([section([line({ price_item_code: 'INT' })])], { client_upgrade: { text: 'Vuole cambiare anche gli altri 7 interruttori?', detail: '', price_item_code: 'INT', qty: 7 } })
+    const q = quote([section([line({ price_item_code: 'INT' })])], {
+      client_upgrade: { text: 'Vuole cambiare anche gli altri 7 interruttori?', detail: '', price_item_code: 'INT', qty: 7 },
+    })
     expect(priceQuote(q, ctx).upgrade).toEqual({ imponibile: 210 })
     const unknown = { ...q, client_upgrade: { ...q.client_upgrade!, price_item_code: 'NON_ESISTE' } }
     expect(priceQuote(unknown, ctx).upgrade).toBeNull()

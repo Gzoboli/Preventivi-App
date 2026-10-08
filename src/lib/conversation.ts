@@ -76,9 +76,7 @@ export async function sendAnswers(
   payload: AnswersPayload,
   perQuestion: { question_id: string; question: string; out: Outgoing }[],
 ) {
-  const summary = payload.answers
-    .map((a) => `${a.question} → ${[...a.selected, ...(a.custom ? [a.custom] : [])].join('; ') || '—'}`)
-    .join('\n')
+  const summary = payload.answers.map((a) => `${a.question} → ${[...a.selected, ...(a.custom ? [a.custom] : [])].join('; ') || '—'}`).join('\n')
   if (payload.answers.some((a) => a.selected.length || a.custom) || payload.method_choices?.length) {
     await insertMessage({ quote_id: quoteId, kind: 'text', text: summary, payload: payload as unknown as Record<string, unknown> })
   }
@@ -99,7 +97,10 @@ export async function updateMessageText(id: string, text: string) {
 
 export async function cancelProposal(quoteId: string, message: ChatMessage) {
   const payload = { ...(message.payload as unknown as ProposalPayload), status: 'cancelled' }
-  const { error } = await supabase.from('quote_messages').update({ payload: payload as unknown as Json }).eq('id', message.id)
+  const { error } = await supabase
+    .from('quote_messages')
+    .update({ payload: payload as unknown as Json })
+    .eq('id', message.id)
   if (error) throw error
   await addNote(quoteId, 'Ho annullato la proposta di modifica.')
   await supabase.from('quotes').update({ phase: 'generato' }).eq('id', quoteId)
@@ -129,7 +130,13 @@ function withLine(quote: AiQuote, id: string, fn: (l: AiLine) => AiLine | null):
 }
 
 /** Saves a manual change in place on the current version, logs it, and tells the AI in the chat. */
-async function saveVersion(version: QuoteVersion, quote: AiQuote, lines: PricedLine[], log: { line_ref: string; before: unknown; after: unknown }[], note: string) {
+async function saveVersion(
+  version: QuoteVersion,
+  quote: AiQuote,
+  lines: PricedLine[],
+  log: { line_ref: string; before: unknown; after: unknown }[],
+  note: string,
+) {
   const prev = version.totals as unknown as Totals
   const totals = aggregate(quote, lines, { vatRate: prev.vat_rate, uplift: prev.uplift, hoursPerDay: prev.hours_per_day, upgrade: prev.upgrade })
   const { error } = await supabase
@@ -138,9 +145,9 @@ async function saveVersion(version: QuoteVersion, quote: AiQuote, lines: PricedL
     .eq('id', version.id)
   if (error) throw error
   if (log.length) {
-    await supabase.from('edits_log').insert(
-      log.map((l) => ({ quote_version_id: version.id, line_ref: l.line_ref, before: l.before as Json, after: l.after as Json })),
-    )
+    await supabase
+      .from('edits_log')
+      .insert(log.map((l) => ({ quote_version_id: version.id, line_ref: l.line_ref, before: l.before as Json, after: l.after as Json })))
   }
   await addNote(version.quote_id, note)
 }
@@ -159,15 +166,33 @@ export async function editLine(version: QuoteVersion, line: AiLine, edit: LineEd
   const prev = (version.totals as unknown as Totals).lines
   const lines = prev.map((p) => {
     if (p.line_id !== line.line_id || edit.unit_price == null || edit.unit_price === p.unit_price) return p
-    return { ...p, unit_price: edit.unit_price, price_source: 'detto' as const, breakdown: 'Prezzo inserito da te', price_missing: false, catalogue: null }
+    return {
+      ...p,
+      unit_price: edit.unit_price,
+      price_source: 'detto' as const,
+      breakdown: 'Prezzo inserito da te',
+      price_missing: false,
+      catalogue: null,
+    }
   })
-  const before = { description: line.description, qty: line.qty, unit_price: prev.find((p) => p.line_id === line.line_id)?.unit_price ?? null, kind: line.kind }
+  const before = {
+    description: line.description,
+    qty: line.qty,
+    unit_price: prev.find((p) => p.line_id === line.line_id)?.unit_price ?? null,
+    kind: line.kind,
+  }
   const changes: string[] = []
   if (before.qty !== edit.qty) changes.push(`quantità ${before.qty} → ${edit.qty}`)
   if (edit.unit_price != null && before.unit_price !== edit.unit_price) changes.push(`prezzo ${before.unit_price ?? '—'} → ${edit.unit_price} €`)
   if (before.kind !== edit.kind) changes.push(`tipo ${before.kind} → ${edit.kind}`)
   if (before.description !== edit.description) changes.push(`descrizione «${edit.description}»`)
-  await saveVersion(version, quote, lines, [{ line_ref: line.line_id, before, after: edit }], `Ho modificato a mano «${line.description}»: ${changes.join(', ') || 'nessun cambiamento'}.`)
+  await saveVersion(
+    version,
+    quote,
+    lines,
+    [{ line_ref: line.line_id, before, after: edit }],
+    `Ho modificato a mano «${line.description}»: ${changes.join(', ') || 'nessun cambiamento'}.`,
+  )
 }
 
 export async function deleteLines(version: QuoteVersion, ids: string[], reason: string) {

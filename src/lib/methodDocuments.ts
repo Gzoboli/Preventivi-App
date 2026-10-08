@@ -27,9 +27,7 @@ export function safeFileName(name: string): string {
 }
 
 export async function listMethodDocuments(userId: string): Promise<MethodDocument[]> {
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .list(folder(userId), { sortBy: { column: 'created_at', order: 'desc' } })
+  const { data, error } = await supabase.storage.from(BUCKET).list(folder(userId), { sortBy: { column: 'created_at', order: 'desc' } })
   if (error) throw error
   return data
     .filter((o) => o.id) // skip folder placeholders
@@ -43,9 +41,7 @@ export async function listMethodDocuments(userId: string): Promise<MethodDocumen
 
 export async function uploadMethodDocument(userId: string, file: File): Promise<void> {
   const path = `${folder(userId)}/${Date.now()}-${safeFileName(file.name)}`
-  const { error } = await supabase.storage
-    .from(BUCKET)
-    .upload(path, file, { contentType: file.type || undefined })
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, { contentType: file.type || undefined })
   if (error) throw error
 }
 

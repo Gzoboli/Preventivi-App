@@ -51,7 +51,13 @@ export async function deleteQuote(id: string) {
   if (error) throw error
 }
 
-export async function uploadQuoteFile(userId: string, quoteId: string, file: File | Blob, name: string, kind: 'audio' | 'document'): Promise<QuoteFile> {
+export async function uploadQuoteFile(
+  userId: string,
+  quoteId: string,
+  file: File | Blob,
+  name: string,
+  kind: 'audio' | 'document',
+): Promise<QuoteFile> {
   const bucket = kind === 'audio' ? 'audio' : 'quote-files'
   const path = `${userId}/${quoteId}/${Date.now()}-${safeFileName(name)}`
   const mime = file.type || null
