@@ -429,7 +429,7 @@ export type Database = {
           status: string
           updated_at: string
           user_id: string
-          vat_rate: number
+          vat_rate: number | null
         }
         Insert: {
           ai_run_started_at?: string | null
@@ -448,7 +448,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
-          vat_rate?: number
+          vat_rate?: number | null
         }
         Update: {
           ai_run_started_at?: string | null
@@ -467,7 +467,7 @@ export type Database = {
           status?: string
           updated_at?: string
           user_id?: string
-          vat_rate?: number
+          vat_rate?: number | null
         }
         Relationships: []
       }
@@ -538,6 +538,6 @@ export type SeriesUplift = Tables<'series_uplift'>
 export type QuoteStatus = 'bozza' | 'inviato'
 export type QuoteTier = 'base' | 'media' | 'top'
 export type VersionStatus = 'processing' | 'needs_answers' | 'ready' | 'error'
-/** 0 = "Senza IVA" (the default). */
-export type VatRate = 0 | 4 | 10 | 22
+/** IVA %, 0 = "Senza IVA"; null on a quote = not chosen yet. */
+export type VatRate = number
 export type QuotePhase = 'raccolta' | 'pronto_da_generare' | 'generato' | 'in_revisione'

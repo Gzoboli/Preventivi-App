@@ -121,6 +121,14 @@ describe('pricing', () => {
     expect(t2.lines[0].total).toBe(150)
     expect(t2.single.totale).toBe(183)
   })
+
+  it('prices the optional extra from his price list, never from the AI', () => {
+    const q = quote([section([line({ price_item_code: 'INT' })])], { client_upgrade: { text: 'Vuole cambiare anche gli altri 7 interruttori?', detail: '', price_item_code: 'INT', qty: 7 } })
+    expect(priceQuote(q, ctx).upgrade).toEqual({ imponibile: 210 })
+    const unknown = { ...q, client_upgrade: { ...q.client_upgrade!, price_item_code: 'NON_ESISTE' } }
+    expect(priceQuote(unknown, ctx).upgrade).toBeNull()
+    expect(priceQuote(quote([section([line({})])]), ctx).upgrade).toBeNull()
+  })
 })
 
 describe('validator', () => {

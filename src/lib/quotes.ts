@@ -27,9 +27,9 @@ export function quoteNumber(q: Pick<Quote, 'quote_year' | 'quote_number'>): stri
   return `${q.quote_year}/${String(q.quote_number).padStart(3, '0')}`
 }
 
-/** New quotes start without IVA (vat_rate 0). */
+/** New quotes have no IVA yet (vat_rate null): it is chosen before the client PDF. */
 export async function createQuote(): Promise<Quote> {
-  const { data, error } = await supabase.from('quotes').insert({ vat_rate: 0 }).select().single()
+  const { data, error } = await supabase.from('quotes').insert({}).select().single()
   if (error) throw error
   return data
 }

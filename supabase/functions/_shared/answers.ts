@@ -43,7 +43,19 @@ export type OnboardingMeta = {
   step?: number
 }
 
-export type Answers = Partial<Record<QuestionId | LegacyQuestionId, Answer>> & { _meta?: OnboardingMeta }
+export type Answers = Partial<Record<QuestionId | LegacyQuestionId, Answer>> & {
+  _meta?: OnboardingMeta
+  /** "Clausola per imprevisti" shown in the client PDF (Task 5); unset = DEFAULT_VARIATION_CLAUSE. */
+  variation_clause?: string
+}
+
+/** Default "Se troviamo sorprese" text; the bold part is marked with **…**. */
+export const DEFAULT_VARIATION_CLAUSE =
+  'Il prezzo si basa su quello che abbiamo visto. Se aprendo l’impianto troviamo situazioni diverse, prima le spieghiamo cosa serve e quanto costa: **nessun lavoro extra senza il suo ok**.'
+
+export function variationClause(answers: Answers): string {
+  return answers.variation_clause?.trim() || DEFAULT_VARIATION_CLAUSE
+}
 
 // ---------- parsing stored JSON ----------
 

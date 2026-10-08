@@ -59,7 +59,16 @@ export type AiLine = {
 }
 
 export type RoomIcon = 'kitchen' | 'bathroom' | 'bedroom' | 'living' | 'hallway' | 'outdoor' | 'panel' | 'other'
-export type AiSection = { name: string; icon: RoomIcon; method: Method; method_why: string; lines: AiLine[] }
+export type AiSection = {
+  name: string
+  icon: RoomIcon
+  method: Method
+  method_why: string
+  lines: AiLine[]
+  /** For the client PDF (Task 5): ≤ ~50 chars, and 1–3 plain sentences. Missing on older quotes. */
+  client_summary?: string
+  client_points?: string[]
+}
 export type AiTier = { series: string; what_you_get: string[] }
 
 export type AiQuote = {
@@ -75,7 +84,14 @@ export type AiQuote = {
   to_check: { text: string; line_id: string | null }[]
   estimated_days: number | null
   team: { persone: number | null; giorni: number | null; ore_giorno: number | null } | null
+  /** For the client PDF (Task 5); missing on older quotes. */
+  client_notes?: string[]
+  client_exclusions?: string[]
+  client_upgrade?: AiUpgrade | null
 }
+
+/** An optional extra offered to the client ("Vuole cambiare anche…?"), priced by the app from the price list. */
+export type AiUpgrade = { text: string; detail: string; price_item_code: string; qty: number }
 
 export type AiChange = { action: 'aggiungo' | 'tolgo' | 'cambio'; line_id: string | null; description: string; effect_eur: number | null }
 export type AiProposal = { type: 'proposal'; job_sheet: JobSheet; changes: AiChange[]; total_effect_eur: number | null; note: string }
@@ -141,6 +157,8 @@ export type Totals = {
   /** Lines without a price ("N voci da completare"). */
   missing_count: number
   flags: Flag[]
+  /** Taxable price of the optional extra (client_upgrade); null when there is none or it has no price. */
+  upgrade?: { imponibile: number } | null
 }
 
 // ---------------------------------------------------------------- helpers
@@ -229,7 +247,15 @@ export function priceLine(line: AiLine, quote: Pick<AiQuote, 'job_sheet'>, ctx: 
 /** Prices every line, then aggregates (see `aggregate`). */
 export function priceQuote(quote: AiQuote, ctx: PricingInputs): Totals {
   const lines = allLines(quote).map((l) => priceLine(l, quote, ctx))
-  return aggregate(quote, lines, { vatRate: ctx.vatRate, uplift: ctx.uplift, hoursPerDay: ctx.hoursPerDay })
+  return aggregate(quote, lines, { vatRate: ctx.vatRate, uplift: ctx.uplift, hoursPerDay: ctx.hoursPerDay, upgrade: priceUpgrade(quote, ctx) })
+}
+
+/** The optional extra at the electrician's price-list price × quantity (null if the item has no price). */
+export function priceUpgrade(quote: Pick<AiQuote, 'client_upgrade'>, ctx: Pick<PricingInputs, 'priceItems'>): Totals['upgrade'] {
+  const u = quote.client_upgrade
+  if (!u || !(u.qty > 0)) return null
+  const item = ctx.priceItems.find((p) => p.code === u.price_item_code && p.price_eur != null)
+  return item ? { imponibile: round2((item.price_eur as number) * u.qty) } : null
 }
 
 function tierTotal(imponibile: number, vatRate: number, upliftMissing: boolean): TierTotal {
@@ -245,7 +271,7 @@ function tierTotal(imponibile: number, vatRate: number, upliftMissing: boolean):
 export function aggregate(
   quote: AiQuote,
   priced: PricedLine[],
-  opts: { vatRate: number; uplift: Totals['uplift']; hoursPerDay: number | null },
+  opts: { vatRate: number; uplift: Totals['uplift']; hoursPerDay: number | null; upgrade?: Totals['upgrade'] },
 ): Totals {
   const byId = new Map(priced.map((p) => [p.line_id, p]))
   const lines = allLines(quote).map((l) => {
@@ -278,6 +304,7 @@ export function aggregate(
     hours_per_day: opts.hoursPerDay,
     missing_count: lines.filter((l) => l.price_missing).length,
     flags: validate(quote, opts.hoursPerDay),
+    upgrade: opts.upgrade ?? null,
   }
 }
 

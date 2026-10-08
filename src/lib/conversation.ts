@@ -131,7 +131,7 @@ function withLine(quote: AiQuote, id: string, fn: (l: AiLine) => AiLine | null):
 /** Saves a manual change in place on the current version, logs it, and tells the AI in the chat. */
 async function saveVersion(version: QuoteVersion, quote: AiQuote, lines: PricedLine[], log: { line_ref: string; before: unknown; after: unknown }[], note: string) {
   const prev = version.totals as unknown as Totals
-  const totals = aggregate(quote, lines, { vatRate: prev.vat_rate, uplift: prev.uplift, hoursPerDay: prev.hours_per_day })
+  const totals = aggregate(quote, lines, { vatRate: prev.vat_rate, uplift: prev.uplift, hoursPerDay: prev.hours_per_day, upgrade: prev.upgrade })
   const { error } = await supabase
     .from('quote_versions')
     .update({ ai_output: quote as unknown as Json, totals: totals as unknown as Json })

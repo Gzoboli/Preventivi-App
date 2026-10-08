@@ -9,7 +9,8 @@
 // The API also caps the size of the compiled grammar. The quote is the biggest reply (sections → lines),
 // so its schema has no job_sheet (the facts are already collected) and no enums: the allowed values
 // are in the descriptions and `normalizeLine`/`normalizeSection` map anything else to a safe default.
-import type { AiLine, AiProposal, AiQuestions, AiQuote, AiReady, JobSheet, MethodProposal } from './pricing.ts'
+// The client_* fields are the plain-language texts of the client PDF (Task 5).
+import type { AiLine, AiProposal, AiQuestions, AiQuote, AiReady, AiUpgrade, JobSheet, MethodProposal } from './pricing.ts'
 
 type Schema = Record<string, unknown>
 
@@ -84,6 +85,8 @@ const quoteFields = {
       method: oneOf(...METHODS),
       method_why: str,
       lines: list(line),
+      client_summary: str,
+      client_points: strArray,
     }),
   ),
   tiers: obj({ offered: bool, base: tier, consigliata: tier, top: tier }),
@@ -93,6 +96,9 @@ const quoteFields = {
   to_check: list(obj({ text: str, line_id: str })),
   estimated_days: num,
   team: obj({ persone: num, giorni: num, ore_giorno: num }),
+  client_notes: strArray,
+  client_exclusions: strArray,
+  client_upgrade: obj({ text: str, detail: str, price_item_code: str, qty: num }),
 }
 
 const proposalFields = {
@@ -126,6 +132,16 @@ const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ?
 const positive = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null)
 const known = <T extends string>(v: unknown, unknown: string): T | null => (typeof v === 'string' && v !== unknown ? (v as T) : null)
 const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : [])
+const strings = (v: unknown): string[] => arr<unknown>(v).flatMap((x) => (typeof x === 'string' && x.trim() ? [x.trim()] : []))
+
+/** The optional extra: only with a text, a price-list item and a quantity. */
+function normalizeUpgrade(v: unknown): AiUpgrade | null {
+  const u = (v ?? {}) as Raw
+  const t = text(u.text)
+  const code = text(u.price_item_code)
+  const qty = positive(u.qty)
+  return t && code && qty ? { text: t, detail: String(u.detail ?? '').trim(), price_item_code: code, qty } : null
+}
 
 export function normalizeJobSheetReply(j: Raw): JobSheet {
   const sq = (j.squadra ?? {}) as Raw
@@ -199,6 +215,8 @@ export function normalizeReply(raw: Raw, current: JobSheet): Reply {
           method: pick(s.method, METHODS, 'ore_materiali'),
           method_why: String(s.method_why ?? ''),
           lines: arr<Raw>(s.lines).map(normalizeLine),
+          client_summary: String(s.client_summary ?? '').trim(),
+          client_points: strings(s.client_points),
         })),
         tiers: tiers.offered === true ? (tiers as unknown as NonNullable<AiQuote['tiers']>) : null,
         build_notes: arr(r.build_notes),
@@ -207,6 +225,9 @@ export function normalizeReply(raw: Raw, current: JobSheet): Reply {
         to_check: arr<Raw>(r.to_check).map((c) => ({ text: String(c.text ?? ''), line_id: text(c.line_id) })),
         estimated_days: positive(r.estimated_days),
         team: hasTeam ? { persone: positive(team.persone), giorni: positive(team.giorni), ore_giorno: positive(team.ore_giorno) } : null,
+        client_notes: strings(r.client_notes),
+        client_exclusions: strings(r.client_exclusions),
+        client_upgrade: normalizeUpgrade(r.client_upgrade),
       }
     }
     default:

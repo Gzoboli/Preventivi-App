@@ -5,7 +5,7 @@ import { round2 } from '../../../supabase/functions/_shared/totals.ts'
 import { formatEur, formatNumber } from '../../../supabase/functions/_shared/format.ts'
 import { TIERS } from '../../lib/onboarding/questions'
 import { VatPicker, vatNote } from './VatPicker'
-import type { Quote, QuoteVersion, VatRate } from '../../types/db'
+import type { Quote, QuoteVersion } from '../../types/db'
 
 const eur = { format: formatEur }
 const num = { format: formatNumber }
@@ -14,11 +14,11 @@ const num = { format: formatNumber }
 export function ResultView({ quote, version }: { quote: Quote; version: QuoteVersion }) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals
-  const [vat, setVat] = useState<VatRate>(Number(quote.vat_rate) as VatRate)
+  const [vat, setVat] = useState<number | null>(quote.vat_rate == null ? null : Number(quote.vat_rate))
 
   // IVA can be changed after generation: the taxable amount doesn't depend on it.
   const withVat = (imponibile: number) => {
-    const iva = round2((imponibile * vat) / 100)
+    const iva = round2((imponibile * (vat ?? 0)) / 100)
     return { iva, totale: round2(imponibile + iva) }
   }
   const priced = (r: number, l: number) => totals.lines.find((x) => x.room === r && x.line === l)

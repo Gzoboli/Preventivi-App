@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { answeredHoursPerDay, methodText, pricingInputs, seriesForTier, upliftFor } from '../../supabase/functions/_shared/method.ts'
 import { normalizeReply, replySchema } from '../../supabase/functions/_shared/aiSchema.ts'
+import { DEFAULT_VARIATION_CLAUSE, variationClause } from '../../supabase/functions/_shared/answers.ts'
 import { EMPTY_JOB_SHEET } from '../../supabase/functions/_shared/pricing.ts'
 import type { Answers } from '../../supabase/functions/_shared/answers.ts'
 
@@ -173,6 +174,7 @@ describe('reply rules', () => {
       },
       q.job_sheet,
     )
+    expect(quote.type === 'quote' && quote.client_upgrade).toBeNull()
     // Quote replies have no job_sheet: the current one is kept.
     expect(quote.job_sheet).toBe(q.job_sheet)
     expect(quote.type === 'quote' && quote.sections[0].lines[0]).toMatchObject({
@@ -191,5 +193,34 @@ describe('reply rules', () => {
       lines: [{ kind: 'materiale', source: 'mia_stima' }],
     })
     expect(quote.type === 'quote' && [quote.tiers, quote.estimated_days, quote.team]).toEqual([null, null, null])
+  })
+})
+
+describe('client texts (Task 5)', () => {
+  it('keeps the client texts and an upgrade only when it is complete', () => {
+    const base = { type: 'quote', title: 't', summary: 's', tiers: { offered: false }, team: {} }
+    const sec = { name: 'Cavi', icon: 'other', method: 'ore_materiali', method_why: '', lines: [], client_summary: ' 10 punti ', client_points: ['Cavi nuovi', ' '] }
+    const q = normalizeReply(
+      {
+        reply: {
+          ...base,
+          sections: [sec],
+          client_notes: ['Tubi in buono stato'],
+          client_exclusions: ['Opere murarie', ''],
+          client_upgrade: { text: 'Vuole cambiare anche gli altri 7 interruttori?', detail: 'Stessa serie', price_item_code: 'INT', qty: 7 },
+        },
+      },
+      EMPTY_JOB_SHEET,
+    )
+    expect(q.type === 'quote' && q.sections[0]).toMatchObject({ client_summary: '10 punti', client_points: ['Cavi nuovi'] })
+    expect(q.type === 'quote' && [q.client_notes, q.client_exclusions]).toEqual([['Tubi in buono stato'], ['Opere murarie']])
+    expect(q.type === 'quote' && q.client_upgrade).toMatchObject({ price_item_code: 'INT', qty: 7 })
+    const none = normalizeReply({ reply: { ...base, sections: [sec], client_upgrade: { text: '', detail: '', price_item_code: '', qty: 0 } } }, EMPTY_JOB_SHEET)
+    expect(none.type === 'quote' && none.client_upgrade).toBeNull()
+  })
+
+  it('uses the default variation clause until he writes his own', () => {
+    expect(variationClause({})).toBe(DEFAULT_VARIATION_CLAUSE)
+    expect(variationClause({ variation_clause: ' Mia clausola ' })).toBe('Mia clausola')
   })
 })

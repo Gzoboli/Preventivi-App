@@ -8,7 +8,7 @@ import { TIERS } from '../../lib/onboarding/questions'
 import { METHOD_LABELS } from '../../../supabase/functions/_shared/chat.ts'
 import { formatEur, formatQty } from '../../../supabase/functions/_shared/format.ts'
 import { diffQuotes, round2, type AiLine, type AiQuote, type PricedLine, type Totals } from '../../../supabase/functions/_shared/pricing.ts'
-import type { Quote, QuoteVersion, VatRate } from '../../types/db'
+import type { Quote, QuoteVersion } from '../../types/db'
 
 /** Where a price comes from, as a small tag on each line. */
 export function sourceTag(line: AiLine, p: PricedLine | undefined): { icon: string; label: string } {
@@ -28,7 +28,7 @@ const builtKey = (versionId: string) => `come-costruito-${versionId}`
 export function QuoteResult({ quote, version, previous, onChanged }: { quote: Quote; version: QuoteVersion; previous: QuoteVersion | null; onChanged: () => void }) {
   const ai = version.ai_output as unknown as AiQuote
   const totals = version.totals as unknown as Totals
-  const [vat, setVat] = useState<VatRate>(Number(quote.vat_rate) as VatRate)
+  const [vat, setVat] = useState<number | null>(quote.vat_rate == null ? null : Number(quote.vat_rate))
   const [openLine, setOpenLine] = useState<string | null>(null)
   const [fixing, setFixing] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -43,14 +43,14 @@ export function QuoteResult({ quote, version, previous, onChanged }: { quote: Qu
     }
   })
 
-  useEffect(() => setVat(Number(quote.vat_rate) as VatRate), [quote.vat_rate])
+  useEffect(() => setVat(quote.vat_rate == null ? null : Number(quote.vat_rate)), [quote.vat_rate])
 
   const priced = useMemo(() => new Map(totals.lines.map((l) => [l.line_id, l])), [totals.lines])
   const prevAi = previous?.ai_output as unknown as AiQuote | undefined
   const changes = useMemo(() => (prevAi?.sections ? diffQuotes(prevAi, ai) : []), [prevAi, ai])
   const changedIds = new Set(changes.filter((c) => c.kind !== 'tolta').map((c) => c.line_id))
   const withVat = (imponibile: number) => {
-    const iva = round2((imponibile * vat) / 100)
+    const iva = round2((imponibile * (vat ?? 0)) / 100)
     return { iva, totale: round2(imponibile + iva) }
   }
   const allLines = ai.sections.flatMap((s) => s.lines)

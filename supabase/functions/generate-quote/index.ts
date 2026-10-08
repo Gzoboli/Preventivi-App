@@ -437,7 +437,7 @@ async function buildContext(
   const parts: string[] = [
     '# Il lavoro',
     `Cliente: ${quote.client_name || 'non indicato'} · Indirizzo: ${quote.client_address || 'non indicato'} · Titolo: ${quote.job_title || 'non indicato'}`,
-    `IVA di questo preventivo: ${Number(quote.vat_rate) ? `${quote.vat_rate}%` : 'senza IVA (prezzi IVA esclusa)'}`,
+    `IVA di questo preventivo: ${quote.vat_rate == null ? 'da decidere (prezzi IVA esclusa)' : Number(quote.vat_rate) ? `${quote.vat_rate}%` : 'senza IVA (prezzi IVA esclusa)'}`,
     '',
     '## Scheda lavoro attuale (JSON)',
     JSON.stringify(quote.job_sheet ?? {}),
@@ -541,7 +541,9 @@ const TECHNICAL_RULES = `Regole tecniche dell’app (valgono sempre e prevalgono
 - replaces_device = true solo sulle righe dove il frutto (interruttore, presa…) viene cambiato: solo lì si applica il sovrapprezzo della serie. tiers.offered = false se non si cambia nessun frutto (riempi comunque base, consigliata e top con testi brevi).
 - to_check: ogni voce con il line_id della riga a cui si riferisce ("" se generale).
 - why delle righe: una frase breve con la fonte dei numeri (es. "2 persone × 1,5 giorni × 8 h, detto da te").
-- I totali, l’IVA, gli sconti e i ricarichi li calcola l’app: non scriverli.`
+- I totali, l’IVA, gli sconti e i ricarichi li calcola l’app: non scriverli.
+- Testi per il cliente (title, summary, client_summary, client_points, client_notes, client_exclusions): seguono le regole della sezione 8; mai codici, ore, tariffe o "mia stima".
+- client_upgrade: solo se ha senso proporre al cliente un’aggiunta facoltativa (es. "Vuole cambiare anche gli altri 7 interruttori?"): text = la domanda al cliente, detail = una frase semplice, price_item_code = la voce del suo listino, qty = quante. Il prezzo lo calcola l’app. Se non c’è niente da proporre: text "", detail "", price_item_code "", qty 0.`
 
 // ---------------------------------------------------------------- AI call (Anthropic)
 

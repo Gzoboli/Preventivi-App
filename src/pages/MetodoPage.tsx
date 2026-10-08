@@ -8,7 +8,7 @@ import { OnboardingBanner } from '../components/OnboardingBanner'
 import { MethodDocuments } from '../components/MethodDocuments'
 import { QuestionBody, validateDraft } from '../components/onboarding/QuestionBody'
 import { useOnboardingActions } from '../lib/onboarding/useOnboardingActions'
-import { cleanAnswer, effectiveAnswer, type Answer } from '../lib/onboarding/answers'
+import { DEFAULT_VARIATION_CLAUSE, cleanAnswer, effectiveAnswer, variationClause, type Answer } from '../lib/onboarding/answers'
 import { getQuestion, type QuestionId } from '../lib/onboarding/questions'
 
 export function MetodoPage() {
@@ -37,6 +37,7 @@ export function MetodoPage() {
             <MethodSummary answers={answers} rows={OTHER_ROWS} onEdit={setEditing} />
           </section>
           <NotesSection />
+          <VariationClauseSection />
           <MethodDocuments />
         </div>
         <div className="space-y-10">
@@ -52,23 +53,64 @@ export function MetodoPage() {
         </div>
       </div>
 
-      {editing && (
-        <EditDialog
-          ids={editing}
-          onClose={() => setEditing(null)}
-          onSaved={(ids) => ids.includes('q5') && setListVersion((v) => v + 1)}
-        />
-      )}
+      {editing && <EditDialog ids={editing} onClose={() => setEditing(null)} onSaved={(ids) => ids.includes('q5') && setListVersion((v) => v + 1)} />}
     </div>
   )
 }
 
 function NotesSection() {
   const { profile, updateProfile } = useProfile()
-  const [text, setText] = useState(profile?.method_notes ?? '')
+  return (
+    <AutosaveTextarea
+      id="method_notes"
+      label="Altro che dovremmo sapere su come lavori"
+      initial={profile?.method_notes ?? ''}
+      placeholder="Es. uso sempre tubo corrugato da 25, nei bagni metto almeno due prese…"
+      onSave={(v) => updateProfile({ method_notes: v.trim() ? v : null })}
+    />
+  )
+}
+
+/** "Se troviamo sorprese" in the client PDF: starts from the usual text, the electrician can rewrite it. */
+function VariationClauseSection() {
+  const { answers, updateAnswers } = useProfile()
+  return (
+    <AutosaveTextarea
+      id="variation_clause"
+      label="Clausola per imprevisti"
+      help="Esce nel PDF per il cliente, nel riquadro «Se troviamo sorprese». Le parole tra ** ** escono in grassetto."
+      initial={variationClause(answers)}
+      onSave={(v) =>
+        updateAnswers((a) => {
+          const { variation_clause: _old, ...rest } = a
+          void _old
+          return v.trim() && v.trim() !== DEFAULT_VARIATION_CLAUSE ? { ...rest, variation_clause: v.trim() } : rest
+        })
+      }
+    />
+  )
+}
+
+/** A text area saved automatically (after a pause, on blur and when leaving the page). */
+function AutosaveTextarea({
+  id,
+  label,
+  help,
+  initial,
+  placeholder,
+  onSave,
+}: {
+  id: string
+  label: string
+  help?: string
+  initial: string
+  placeholder?: string
+  onSave: (v: string) => Promise<void>
+}) {
+  const [text, setText] = useState(initial)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const timer = useRef<number | undefined>(undefined)
-  const lastSaved = useRef(profile?.method_notes ?? '')
+  const lastSaved = useRef(initial)
 
   function onChange(v: string) {
     setText(v)
@@ -80,7 +122,7 @@ function NotesSection() {
     if (v === lastSaved.current) return
     setStatus('saving')
     try {
-      await updateProfile({ method_notes: v.trim() ? v : null })
+      await onSave(v)
       lastSaved.current = v
       setStatus('saved')
     } catch {
@@ -103,11 +145,12 @@ function NotesSection() {
 
   return (
     <section>
-      <label htmlFor="method_notes" className="mb-3 block text-lg font-semibold">
-        Altro che dovremmo sapere su come lavori
+      <label htmlFor={id} className="block text-lg font-semibold">
+        {label}
       </label>
+      {help && <p className="mt-1 text-muted">{help}</p>}
       <textarea
-        id="method_notes"
+        id={id}
         rows={5}
         value={text}
         onChange={(e) => onChange(e.target.value)}
@@ -115,8 +158,8 @@ function NotesSection() {
           window.clearTimeout(timer.current)
           void save(text)
         }}
-        placeholder="Es. uso sempre tubo corrugato da 25, nei bagni metto almeno due prese…"
-        className="w-full rounded-lg border border-line px-4 py-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
+        placeholder={placeholder}
+        className="mt-3 w-full rounded-lg border border-line px-4 py-3 text-base outline-none focus:border-accent focus:ring-2 focus:ring-accent/20"
       />
       <p className="mt-1 h-5 text-sm text-muted" role="status">
         {status === 'saving' && 'Salvataggio…'}
@@ -132,20 +175,10 @@ function NotesSection() {
 }
 
 /** Edits one or more questions (e.g. "Tariffa" = q3 + q4) with the same components as the onboarding. */
-function EditDialog({
-  ids,
-  onClose,
-  onSaved,
-}: {
-  ids: QuestionId[]
-  onClose: () => void
-  onSaved: (ids: QuestionId[]) => void
-}) {
+function EditDialog({ ids, onClose, onSaved }: { ids: QuestionId[]; onClose: () => void; onSaved: (ids: QuestionId[]) => void }) {
   const { answers } = useProfile()
   const { commit } = useOnboardingActions()
-  const [drafts, setDrafts] = useState<Record<string, Answer>>(() =>
-    Object.fromEntries(ids.map((id) => [id, effectiveAnswer(answers, id)])),
-  )
+  const [drafts, setDrafts] = useState<Record<string, Answer>>(() => Object.fromEntries(ids.map((id) => [id, effectiveAnswer(answers, id)])))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -186,7 +219,12 @@ function EditDialog({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-end px-2 pt-2">
-          <button type="button" onClick={onClose} aria-label="Chiudi" className="flex size-12 items-center justify-center rounded-lg text-muted hover:bg-gray-100">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Chiudi"
+            className="flex size-12 items-center justify-center rounded-lg text-muted hover:bg-gray-100"
+          >
             <X className="size-6" />
           </button>
         </div>
